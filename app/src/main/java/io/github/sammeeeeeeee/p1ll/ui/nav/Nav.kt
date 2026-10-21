@@ -37,7 +37,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import io.github.sammeeeeeeee.p1ll.ui.theme.Motion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -158,25 +157,28 @@ fun NavHost(content: @Composable (Screen, Navigator) -> Unit) {
 
 private fun AnimatedContentTransitionScope<Screen>.spec(): ContentTransform {
     val forward = targetState.depth > initialState.depth
-    val slide = spring<IntOffset>(dampingRatio = 0.9f, stiffness = 420f)
+    // Everything lands on a spring with a touch of overshoot, so screens arrive rather than appear.
+    val slide = spring<IntOffset>(dampingRatio = 0.78f, stiffness = 340f)
+    val land = spring<Float>(dampingRatio = 0.68f, stiffness = 300f)
+    val settle = spring<Float>(dampingRatio = 1f, stiffness = 420f)
     val transform = when {
         targetState is Screen.Settings || initialState is Screen.Settings -> if (forward) {
-            (slideInHorizontally(slide) { it / 3 } + fadeIn(tween(220)))
-                .togetherWith(slideOutHorizontally(slide) { -it / 6 } + fadeOut(tween(160)))
+            (slideInHorizontally(slide) { it / 2 } + scaleIn(land, 0.96f) + fadeIn(tween(200)))
+                .togetherWith(slideOutHorizontally(slide) { -it / 5 } + scaleOut(settle, 0.94f) + fadeOut(tween(200)))
         } else {
-            (slideInHorizontally(slide) { -it / 6 } + fadeIn(tween(220)))
-                .togetherWith(slideOutHorizontally(slide) { it / 3 } + fadeOut(tween(160)))
+            (slideInHorizontally(slide) { -it / 5 } + scaleIn(land, 0.94f) + fadeIn(tween(220)))
+                .togetherWith(slideOutHorizontally(slide) { it / 2 } + fadeOut(tween(180)))
         }
         targetState is Screen.Editor && !(targetState as Screen.Editor).fromFab && forward ->
-            (slideInVertically(slide) { it / 8 } + fadeIn(tween(240)))
-                .togetherWith(scaleOut(tween(300, easing = Motion.emphasized), 0.94f) + fadeOut(tween(200)))
+            (slideInVertically(slide) { it / 5 } + scaleIn(land, 0.94f) + fadeIn(tween(220)))
+                .togetherWith(scaleOut(settle, 0.92f) + fadeOut(tween(220)))
         initialState is Screen.Editor && !(initialState as Screen.Editor).fromFab && !forward ->
-            (scaleIn(tween(300, easing = Motion.emphasized), 0.94f) + fadeIn(tween(200)))
-                .togetherWith(slideOutVertically(slide) { it / 8 } + fadeOut(tween(180)))
-        forward -> fadeIn(tween(260, delayMillis = 40))
-            .togetherWith(scaleOut(tween(380, easing = Motion.emphasized), 0.94f) + fadeOut(tween(260)))
-        else -> (scaleIn(tween(380, easing = Motion.emphasized), 0.94f) + fadeIn(tween(260)))
-            .togetherWith(fadeOut(tween(180)))
+            (scaleIn(land, 0.92f) + fadeIn(tween(220)))
+                .togetherWith(slideOutVertically(slide) { it / 5 } + scaleOut(settle, 0.96f) + fadeOut(tween(180)))
+        forward -> (scaleIn(land, 0.9f) + slideInVertically(slide) { it / 12 } + fadeIn(tween(240, delayMillis = 30)))
+            .togetherWith(scaleOut(settle, 0.92f) + fadeOut(tween(240)))
+        else -> (scaleIn(land, 0.92f) + fadeIn(tween(240)))
+            .togetherWith(scaleOut(settle, 0.9f) + slideOutVertically(slide) { it / 12 } + fadeOut(tween(200)))
     }
     transform.targetContentZIndex = if (forward) 1f else 0f
     return transform

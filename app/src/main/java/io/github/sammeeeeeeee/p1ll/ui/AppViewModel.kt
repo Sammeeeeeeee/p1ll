@@ -176,10 +176,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun save(pill: Pill, done: (Long) -> Unit = {}) = viewModelScope.launch {
-        val id = store.save(pill)
-        done(id)
-    }
+    fun save(pill: Pill, backfill: Boolean = false) = viewModelScope.launch { store.save(pill, backfill) }
+
+    fun logAt(pillId: Long, day: Long, minute: Int) = viewModelScope.launch { store.logAt(pillId, day, minute) }
 
     fun delete(pill: Pill) = viewModelScope.launch { store.delete(pill) }
 

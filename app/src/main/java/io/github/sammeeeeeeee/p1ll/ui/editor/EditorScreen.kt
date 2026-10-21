@@ -1,6 +1,5 @@
 package io.github.sammeeeeeeee.p1ll.ui.editor
 
-import android.text.format.DateFormat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -40,17 +39,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -80,16 +70,17 @@ import io.github.sammeeeeeeee.p1ll.data.ScheduleType
 import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import io.github.sammeeeeeeee.p1ll.ui.components.Chip
 import io.github.sammeeeeeeee.p1ll.ui.components.CircleButton
+import io.github.sammeeeeeeee.p1ll.ui.components.DateDialog
+import io.github.sammeeeeeeee.p1ll.ui.components.TimeDialog
 import io.github.sammeeeeeeee.p1ll.ui.components.Divider
-import io.github.sammeeeeeeee.p1ll.ui.components.GhostButton
 import io.github.sammeeeeeeee.p1ll.ui.components.Icons
 import io.github.sammeeeeeeee.p1ll.ui.components.PillGlyph
 import io.github.sammeeeeeeee.p1ll.ui.components.PrimaryButton
-import io.github.sammeeeeeeee.p1ll.ui.components.SectionLabel
 import io.github.sammeeeeeeee.p1ll.ui.components.Segmented
 import io.github.sammeeeeeeee.p1ll.ui.components.SettingRow
 import io.github.sammeeeeeeee.p1ll.ui.components.Stepper
 import io.github.sammeeeeeeee.p1ll.ui.components.Surface
+import io.github.sammeeeeeeee.p1ll.ui.components.enter
 import io.github.sammeeeeeeee.p1ll.ui.components.Toggle
 import io.github.sammeeeeeeee.p1ll.ui.components.tappable
 import io.github.sammeeeeeeee.p1ll.ui.feedback.LocalFeedback
@@ -123,6 +114,7 @@ class EditorState(private val base: Pill?, today: Long, usedColors: Set<Int>) {
     var stock by mutableStateOf(base?.stock?.toString() ?: "30")
     var perDose by mutableIntStateOf(base?.perDose ?: 1)
     var refillAt by mutableStateOf(base?.refillAt?.toString() ?: "7")
+    var backfill by mutableStateOf(true)
 
     val isNew get() = base == null
 
@@ -168,8 +160,8 @@ fun EditorScreen(
     usedColors: Set<Int>,
     fromFab: Boolean,
     onClose: () -> Unit,
-    onSave: (Pill) -> Unit,
-    onDelete: ((Pill) -> Unit)?,
+    /** The pill, and whether a backdated start should fill its past doses in as taken. */
+    onSave: (Pill, Boolean) -> Unit,
 ) {
     val c = P1ll.colors
     val feedback = LocalFeedback.current
@@ -179,6 +171,7 @@ fun EditorScreen(
     val nameFocus = remember { FocusRequester() }
     var editingTime by remember { mutableStateOf<Int?>(null) }
     var pickingEnd by remember { mutableStateOf(false) }
+    var pickingStart by remember { mutableStateOf(false) }
     val color by animateColorAsState(pillColor(state.color, c.dark), spring(1f, 300f), label = "color")
 
     LaunchedEffect(Unit) {
@@ -204,7 +197,7 @@ fun EditorScreen(
                 if (state.isNew) "Add" else "Save",
                 {
                     feedback.saved()
-                    onSave(state.build(System.currentTimeMillis()))
+                    onSave(state.build(System.currentTimeMillis()), state.isNew && state.backfill && state.startDay < today)
                 },
                 enabled = state.valid,
                 icon = Icons.Check,
@@ -232,10 +225,10 @@ fun EditorScreen(
                 capitalization = KeyboardCapitalization.Words,
             )
             Spacer(Modifier.height(4.dp))
-            Field(state.dosage, { state.dosage = it }, "Dose, e.g. 50 mg", Type.body.copy(color = c.ink2))
+            Field(state.dosage, { state.dosage = it }, "Dose", Type.body.copy(color = c.ink2))
 
-            Section("Look")
-            Surface {
+            Spacer(Modifier.height(24.dp))
+            Surface(Modifier.enter(2)) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -286,8 +279,8 @@ fun EditorScreen(
                 }
             }
 
-            Section("When")
-            Surface {
+            Spacer(Modifier.height(16.dp))
+            Surface(Modifier.enter(3)) {
                 Column(Modifier.padding(14.dp)) {
                     Segmented(
                         listOf(ScheduleType.DAILY, ScheduleType.WEEKDAYS, ScheduleType.INTERVAL, ScheduleType.AS_NEEDED),
@@ -324,33 +317,33 @@ fun EditorScreen(
                         enter = expandVertically(spring(0.9f, 400f)) + fadeIn(),
                         exit = shrinkVertically(spring(0.9f, 400f)) + fadeOut(),
                     ) {
-                        Column(Modifier.padding(top = 18.dp)) {
-                            Text("Remind me at", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+                        Column(Modifier.padding(top = 16.dp)) {
                             TimeChips(state, onEdit = { editingTime = it })
                         }
-                    }
-                    AnimatedVisibility(state.schedule == ScheduleType.AS_NEEDED) {
-                        Text(
-                            "No reminders. Log it from the home screen whenever you take one.",
-                            style = Type.label,
-                            color = c.ink2,
-                            modifier = Modifier.padding(top = 14.dp, start = 4.dp),
-                        )
                     }
                 }
             }
 
-            Section("Options")
-            Surface {
+            Spacer(Modifier.height(16.dp))
+            Surface(Modifier.enter(4)) {
                 if (state.schedule != ScheduleType.AS_NEEDED) {
-                    SettingRow("Optional", hint = "Reminded, but never counts as missed") {
+                    SettingRow("Optional", hint = "Never counts as missed") {
                         Toggle(state.optional, { state.optional = it })
                     }
                     Divider()
                 }
+                StartDate(state, today, onPick = { pickingStart = true })
+                AnimatedVisibility(
+                    state.isNew && state.startDay < today && state.schedule != ScheduleType.AS_NEEDED,
+                    enter = expandVertically(spring(0.9f, 400f)) + fadeIn(),
+                    exit = shrinkVertically(spring(0.9f, 400f)) + fadeOut(),
+                ) {
+                    SettingRow("Mark past doses taken") { Toggle(state.backfill, { state.backfill = it }) }
+                }
+                Divider()
                 EndDate(state, onPick = { pickingEnd = true })
                 Divider()
-                SettingRow("Track supply", hint = "Count down as you take them") {
+                SettingRow("Track supply") {
                     Toggle(state.trackStock, { state.trackStock = it })
                 }
                 AnimatedVisibility(
@@ -360,7 +353,7 @@ fun EditorScreen(
                 ) {
                     Column(Modifier.padding(start = 18.dp, end = 14.dp, bottom = 14.dp)) {
                         NumberRow("Pills left", state.stock) { state.stock = it }
-                        NumberRow("Warn me at", state.refillAt) { state.refillAt = it }
+                        NumberRow("Refill at", state.refillAt) { state.refillAt = it }
                         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("Per dose", style = Type.bodyStrong, modifier = Modifier.weight(1f))
                             Stepper(state.perDose, { state.perDose = it }, 1..10)
@@ -369,18 +362,13 @@ fun EditorScreen(
                 }
             }
 
-            Section("Notes")
-            Surface {
+            Spacer(Modifier.height(16.dp))
+            Surface(Modifier.enter(5)) {
                 Field(
-                    state.notes, { state.notes = it }, "With food, before bed…", Type.body,
+                    state.notes, { state.notes = it }, "Notes", Type.body,
                     Modifier.padding(18.dp),
                     singleLine = false,
                 )
-            }
-
-            if (onDelete != null && initial != null) {
-                Spacer(Modifier.height(28.dp))
-                GhostButton("Delete pill", { onDelete(initial) }, color = c.danger, icon = Icons.Trash)
             }
         }
     }
@@ -397,16 +385,17 @@ fun EditorScreen(
         )
     }
     if (pickingEnd) {
-        EndDateDialog(state.endDay ?: (today + 13), today, { pickingEnd = false }) {
+        DateDialog(state.endDay ?: (today + 13), { pickingEnd = false }, {
             state.endDay = it
             pickingEnd = false
-        }
+        }, min = maxOf(today, state.startDay))
     }
-}
-
-@Composable
-private fun Section(text: String) {
-    SectionLabel(text, Modifier.padding(start = 4.dp, top = 28.dp, bottom = 10.dp))
+    if (pickingStart) {
+        DateDialog(state.startDay, { pickingStart = false }, {
+            state.startDay = it
+            pickingStart = false
+        })
+    }
 }
 
 @Composable
@@ -535,6 +524,20 @@ private fun WeekdayPicker(mask: Int, onChange: (Int) -> Unit, modifier: Modifier
     }
 }
 
+@Composable
+private fun StartDate(state: EditorState, today: Long, onPick: () -> Unit) {
+    val c = P1ll.colors
+    Row(
+        Modifier.fillMaxWidth().tappable(pressedScale = 0.98f, onClick = onPick).padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Starts", style = Type.bodyStrong, modifier = Modifier.weight(1f))
+        AnimatedContent(state.startDay, label = "start") { start ->
+            Text(if (start == today) "Today" else Fmt.dayMonth(start), style = Type.label, color = if (start == today) c.ink2 else c.ink)
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EndDate(state: EditorState, onPick: () -> Unit) {
@@ -542,65 +545,18 @@ private fun EndDate(state: EditorState, onPick: () -> Unit) {
     val today = LocalDate.now().toEpochDay()
     Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Ends", style = Type.bodyStrong)
-                Text("Reminders stop after this day", style = Type.label, color = c.ink2)
-            }
+            Text("Ends", style = Type.bodyStrong, modifier = Modifier.weight(1f))
             AnimatedContent(state.endDay, label = "end") { end ->
-                Text(end?.let { Fmt.fullDate(it) } ?: "Never", style = Type.label, color = if (end == null) c.ink2 else c.ink)
+                Text(end?.let { Fmt.dayMonth(it) }.orEmpty(), style = Type.label, color = c.ink)
             }
         }
         Spacer(Modifier.height(12.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Chip("Never", state.endDay == null, { state.endDay = null })
-            listOf(7 to "1 week", 14 to "2 weeks", 30 to "30 days").forEach { (n, label) ->
+            listOf(7 to "7 days", 14 to "14 days", 30 to "30 days").forEach { (n, label) ->
                 Chip(label, state.endDay == today + n - 1, { state.endDay = today + n - 1 })
             }
             Chip("Pick…", false, onPick, leading = Icons.Calendar)
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TimeDialog(initial: Int, onDismiss: () -> Unit, onPick: (Int) -> Unit) {
-    val context = LocalContext.current
-    val picker = rememberTimePickerState(initial / 60, initial % 60, DateFormat.is24HourFormat(context))
-    BasicAlertDialog(onDismissRequest = onDismiss) {
-        Surface(radius = 32.dp) {
-            Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                SectionLabel("Reminder time", Modifier.align(Alignment.Start).padding(bottom = 18.dp))
-                TimePicker(picker)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    GhostButton("Cancel", onDismiss)
-                    Spacer(Modifier.width(8.dp))
-                    PrimaryButton("Set", { onPick(picker.hour * 60 + picker.minute) })
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun EndDateDialog(initial: Long, today: Long, onDismiss: () -> Unit, onPick: (Long) -> Unit) {
-    val c = P1ll.colors
-    val day = 86_400_000L
-    val picker = rememberDatePickerState(
-        initialSelectedDateMillis = initial * day,
-        selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis / day >= today
-        },
-    )
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            PrimaryButton("Set", { picker.selectedDateMillis?.let { onPick(it / day) } ?: onDismiss() }, Modifier.padding(end = 12.dp, bottom = 8.dp))
-        },
-        dismissButton = { GhostButton("Cancel", onDismiss, Modifier.padding(end = 8.dp, bottom = 8.dp)) },
-        shape = RoundedCornerShape(32.dp),
-        colors = DatePickerDefaults.colors(containerColor = c.surface),
-    ) {
-        DatePicker(picker, colors = DatePickerDefaults.colors(containerColor = c.surface), showModeToggle = false)
     }
 }

@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -15,7 +16,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sammeeeeeeee.p1ll.domain.SlotStatus
 import io.github.sammeeeeeeee.p1ll.reminders.Notifications
+import io.github.sammeeeeeeee.p1ll.ui.components.BounceOverscrollFactory
+import io.github.sammeeeeeeee.p1ll.ui.components.LocalReveal
 import io.github.sammeeeeeeee.p1ll.ui.components.rememberChartWave
+import io.github.sammeeeeeeee.p1ll.ui.components.rememberReveal
 import io.github.sammeeeeeeee.p1ll.ui.detail.DetailActions
 import io.github.sammeeeeeeee.p1ll.ui.detail.DetailScreen
 import io.github.sammeeeeeeee.p1ll.ui.editor.EditorScreen
@@ -43,9 +47,14 @@ fun App(vm: AppViewModel) {
     val context = LocalContext.current
     var openDay by remember { mutableStateOf<OpenDay?>(null) }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val reveal = rememberReveal()
 
     P1llTheme(prefs) {
-        CompositionLocalProvider(LocalFeedback provides feedback) {
+        CompositionLocalProvider(
+            LocalFeedback provides feedback,
+            LocalReveal provides reveal,
+            LocalOverscrollFactory provides BounceOverscrollFactory,
+        ) {
             NavHost { screen, nav ->
                 when (screen) {
                     Screen.Home -> HomeScreen(
@@ -103,17 +112,12 @@ fun App(vm: AppViewModel) {
                         usedColors = snapshot.pills.map { it.color }.toSet(),
                         fromFab = screen.fromFab,
                         onClose = nav::pop,
-                        onSave = { pill ->
-                            vm.save(pill)
+                        onSave = { pill, backfill ->
+                            vm.save(pill, backfill)
                             if (pill.id == 0L && Build.VERSION.SDK_INT >= 33 && !Notifications.allowed(context)) {
                                 askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
                             nav.pop()
-                        },
-                        onDelete = { pill ->
-                            feedback.undo()
-                            vm.delete(pill)
-                            nav.popTo(Screen.Home)
                         },
                     )
                     Screen.Settings -> SettingsScreen(prefs, nav::pop) { vm.updatePrefs(it) }
@@ -126,6 +130,7 @@ fun App(vm: AppViewModel) {
                     pillId = open.pillId,
                     onSet = { slot, status -> vm.set(slot, status) },
                     onRemoveDose = vm::clearDose,
+                    onAddDose = { pillId, minute -> vm.logAt(pillId, open.day, minute) },
                     onDismiss = { openDay = null },
                 )
             }

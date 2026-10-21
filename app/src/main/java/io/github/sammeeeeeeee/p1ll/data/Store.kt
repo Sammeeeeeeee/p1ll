@@ -4,6 +4,8 @@ import android.content.Context
 import io.github.sammeeeeeeee.p1ll.domain.Slot
 import io.github.sammeeeeeeee.p1ll.domain.SlotStatus
 import io.github.sammeeeeeeee.p1ll.domain.matchSlots
+import io.github.sammeeeeeeee.p1ll.domain.pastDoses
+import io.github.sammeeeeeeee.p1ll.domain.slotTime
 import io.github.sammeeeeeeee.p1ll.domain.slotsOn
 import io.github.sammeeeeeeee.p1ll.reminders.Notifications
 import io.github.sammeeeeeeee.p1ll.reminders.Reminders
@@ -16,10 +18,20 @@ class Store(private val context: Context, val db: P1llDb, val settings: Settings
     val pills: Flow<List<Pill>> = db.pills().observeAll()
     val doses: Flow<List<Dose>> = db.doses().observeAll()
 
-    suspend fun save(pill: Pill): Long {
+    /** [backfill] marks every dose between a backdated start and now as taken. */
+    suspend fun save(pill: Pill, backfill: Boolean = false): Long {
         val id = if (pill.id == 0L) db.pills().insert(pill) else pill.id.also { db.pills().update(pill) }
+        if (backfill) fillHistory(pill.copy(id = id))
         Reminders.sync(context)
         return id
+    }
+
+    private suspend fun fillHistory(pill: Pill) {
+        val now = ZonedDateTime.now()
+        val logged = db.doses().between(pill.startDay, now.toLocalDate().toEpochDay())
+            .filter { it.pillId == pill.id }.map { it.day to it.minute }.toSet()
+        val doses = pill.pastDoses(now, logged)
+        if (doses.isNotEmpty()) db.doses().insertAll(doses)
     }
 
     suspend fun delete(pill: Pill) {
@@ -53,8 +65,19 @@ class Store(private val context: Context, val db: P1llDb, val settings: Settings
     suspend fun clear(doseId: Long) {
         val dose = db.doses().get(doseId) ?: return
         db.doses().delete(doseId)
-        if (dose.status == DoseStatus.TAKEN) adjustStock(dose.pillId, +1)
+        val today = ZonedDateTime.now().toLocalDate().toEpochDay()
+        if (dose.status == DoseStatus.TAKEN && dose.day == today) adjustStock(dose.pillId, +1)
         Reminders.sync(context)
+    }
+
+    /** A dose logged after the fact, at the time it was actually taken. */
+    suspend fun logAt(pillId: Long, day: Long, minute: Int): Long {
+        val zone = ZoneId.systemDefault()
+        val id = db.doses().insert(
+            Dose(pillId = pillId, day = day, minute = minute, status = DoseStatus.TAKEN, at = slotTime(day, minute, zone).toInstant().toEpochMilli()),
+        )
+        if (day == ZonedDateTime.now(zone).toLocalDate().toEpochDay()) adjustStock(pillId, -1)
+        return id
     }
 
     suspend fun logAsNeeded(pillId: Long): Long {
@@ -90,17 +113,21 @@ class Store(private val context: Context, val db: P1llDb, val settings: Settings
     }
 
     private suspend fun setStatus(slot: Slot, status: DoseStatus): Long {
-        val now = System.currentTimeMillis()
+        val zone = ZoneId.systemDefault()
+        val today = ZonedDateTime.now(zone).toLocalDate().toEpochDay()
+        // Filling in an earlier day records the dose at its scheduled time and leaves today's supply alone.
+        val past = slot.day < today
+        val at = if (past) slotTime(slot.day, slot.minute, zone).toInstant().toEpochMilli() else System.currentTimeMillis()
         val existing = slot.doseId?.let { db.doses().get(it) }
         val id = if (existing != null) {
-            db.doses().update(existing.copy(status = status, at = now))
+            db.doses().update(existing.copy(status = status, at = at))
             existing.id
         } else {
-            db.doses().insert(Dose(pillId = slot.pillId, day = slot.day, minute = slot.minute, status = status, at = now))
+            db.doses().insert(Dose(pillId = slot.pillId, day = slot.day, minute = slot.minute, status = status, at = at))
         }
         val wasTaken = existing?.status == DoseStatus.TAKEN
         val isTaken = status == DoseStatus.TAKEN
-        if (wasTaken != isTaken) adjustStock(slot.pillId, if (isTaken) -1 else +1)
+        if (wasTaken != isTaken && !past) adjustStock(slot.pillId, if (isTaken) -1 else +1)
         Notifications.cancel(context, slot.pillId, slot.minute)
         Reminders.sync(context)
         return id

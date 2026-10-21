@@ -53,6 +53,9 @@ interface DoseDao {
     @Insert
     suspend fun insert(dose: Dose): Long
 
+    @Insert
+    suspend fun insertAll(doses: List<Dose>)
+
     @Update
     suspend fun update(dose: Dose)
 

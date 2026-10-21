@@ -13,6 +13,7 @@ import io.github.sammeeeeeeee.p1ll.domain.indexDoses
 import io.github.sammeeeeeeee.p1ll.domain.isActiveOn
 import io.github.sammeeeeeeee.p1ll.domain.matchSlots
 import io.github.sammeeeeeeee.p1ll.domain.nextDose
+import io.github.sammeeeeeeee.p1ll.domain.pastDoses
 import io.github.sammeeeeeeee.p1ll.domain.slotsOn
 import io.github.sammeeeeeeee.p1ll.domain.stats
 import org.junit.Assert.assertEquals
@@ -158,5 +159,22 @@ class ScheduleTest {
         assertEquals(Phase.AS_NEEDED, phases[4])
         assertEquals(Phase.FINISHED, phases[5])
         assertEquals(Phase.NOT_TODAY, phases[6])
+    }
+
+    @Test
+    fun backdatedPillCountsEverySlotOnTheDayItWasAdded() {
+        val created = at(monday, 23, 0).toInstant().toEpochMilli()
+        val p = pill(times = listOf(8 * 60, 20 * 60), start = monday - 3, createdAt = created)
+        assertEquals(listOf(8 * 60, 20 * 60), p.slotsOn(monday, zone))
+    }
+
+    @Test
+    fun pastDosesFillUpToNowAndSkipLogged() {
+        val p = pill(times = listOf(8 * 60, 20 * 60), start = monday - 3)
+        val doses = p.pastDoses(at(monday, 12, 0), setOf((monday - 1) to 20 * 60))
+        // Three full days less one already logged, plus this morning.
+        assertEquals(6, doses.size)
+        assertTrue(doses.all { it.status == DoseStatus.TAKEN })
+        assertEquals(at(monday, 8).toInstant().toEpochMilli(), doses.last().at)
     }
 }

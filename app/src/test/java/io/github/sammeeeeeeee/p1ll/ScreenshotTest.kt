@@ -115,7 +115,7 @@ class ScreenshotTest {
     @Test
     fun editor() = shot("editor-light") {
         val s = snapshot()
-        EditorScreen(s.pills[1], today, emptySet(), fromFab = false, onClose = {}, onSave = {}, onDelete = {})
+        EditorScreen(s.pills[1], today, emptySet(), fromFab = false, onClose = {}, onSave = { _, _ -> })
     }
 
     @Test

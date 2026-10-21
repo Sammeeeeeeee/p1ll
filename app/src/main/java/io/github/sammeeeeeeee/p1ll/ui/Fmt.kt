@@ -27,9 +27,6 @@ object Fmt {
     fun shortDate(day: Long): String =
         LocalDate.ofEpochDay(day).format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
 
-    fun fullDate(day: Long): String =
-        LocalDate.ofEpochDay(day).format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault()))
-
     /** "in 2 h 5 min", "in 12 min", "now". */
     fun until(minutes: Long): String = when {
         minutes <= 0 -> "now"
