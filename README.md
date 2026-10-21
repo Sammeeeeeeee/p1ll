@@ -24,6 +24,7 @@ A pill tracker built around a chart like GitHub's contribution graph. Each squar
 ./gradlew testDebugUnitTest assembleRelease   # signed APK in app/build/outputs/apk/release/
 ./gradlew recordRoborazziDebug                # re-render docs/screenshots
 python3 tools/sounds.py                       # re-synthesise the sounds in res/raw
+python3 tools/fonts.py <RedHatDisplay[wght].ttf> <RedHatText[wght].ttf>   # re-cut the static font weights
 ```
 
 Requires JDK 17+ and the Android SDK (compileSdk 36).
@@ -50,4 +51,4 @@ Signing certificate SHA-256:
 
 - Exact reminders use `USE_EXACT_ALARM`, which Android 13+ grants at install. Google Play restricts it to alarm and calendar apps, so a Play build would need the `SCHEDULE_EXACT_ALARM` permission flow instead ([Android 14 exact-alarm changes](https://developer.android.com/about/versions/14/changes/schedule-exact-alarms)).
 - All reminders run off a single alarm. When it fires, everything due is posted together and the next alarm is armed. This keeps doses at the same time from being throttled under Doze, and lets the app catch up after a reboot.
-- Typefaces: [Fredoka](https://github.com/hafontia/Fredoka-One) for headings and numbers, [Nunito](https://github.com/googlefonts/nunito) for text. Both are under the SIL Open Font License (`licenses/`).
+- Typefaces: [Red Hat Display and Red Hat Text](https://github.com/RedHatOfficial/RedHatFont), SIL Open Font License (`licenses/`).

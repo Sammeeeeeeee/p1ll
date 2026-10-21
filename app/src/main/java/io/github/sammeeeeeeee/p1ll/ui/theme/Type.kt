@@ -1,85 +1,85 @@
 package io.github.sammeeeeeeee.p1ll.ui.theme
 
 import androidx.compose.material3.Typography
-import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
 import io.github.sammeeeeeeee.p1ll.R
 
-@OptIn(ExperimentalTextApi::class)
-private fun fredoka(weight: Int) = Font(
-    R.font.fredoka,
-    FontWeight(weight),
-    variationSettings = FontVariation.Settings(FontVariation.weight(weight), FontVariation.width(100f)),
+/** Red Hat Display: headings, names and big numbers. Static instances, cut by tools/fonts.py. */
+val Display = FontFamily(
+    Font(R.font.redhat_display_500, FontWeight.Medium),
+    Font(R.font.redhat_display_650, FontWeight(650)),
 )
 
-@OptIn(ExperimentalTextApi::class)
-private fun nunito(weight: Int) = Font(
-    R.font.nunito,
-    FontWeight(weight),
-    variationSettings = FontVariation.Settings(FontVariation.weight(weight)),
+/** Between SemiBold and Bold: where Red Hat Display looks most settled at heading sizes. */
+private val Heading = FontWeight(650)
+
+/** Red Hat Text: everything you read. */
+val Body = FontFamily(
+    Font(R.font.redhat_text_400, FontWeight.Normal),
+    Font(R.font.redhat_text_500, FontWeight.Medium),
+    Font(R.font.redhat_text_600, FontWeight.SemiBold),
 )
-
-/** Rounded and bubbly: headings, names and big numbers. */
-val Display = FontFamily(fredoka(400), fredoka(500), fredoka(600), fredoka(700))
-
-/** Rounded and calm, with tabular digits by default: everything you read. */
-val Body = FontFamily(nunito(400), nunito(500), nunito(600), nunito(700), nunito(800), nunito(900))
 
 private val trim = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)
 
 object Type {
     val hero = TextStyle(
         fontFamily = Display,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 112.sp,
-        lineHeight = 104.sp,
+        fontWeight = Heading,
+        fontSize = 108.sp,
+        lineHeight = 100.sp,
+        letterSpacing = (-2).sp,
+        fontFeatureSettings = "tnum",
         lineHeightStyle = trim,
     )
     val number = TextStyle(
         fontFamily = Display,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 30.sp,
-        lineHeight = 32.sp,
+        fontWeight = Heading,
+        fontSize = 28.sp,
+        lineHeight = 30.sp,
+        fontFeatureSettings = "tnum",
         lineHeightStyle = trim,
     )
     val title = TextStyle(
         fontFamily = Display,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = Heading,
         fontSize = 30.sp,
         lineHeight = 36.sp,
+        letterSpacing = (-0.3).sp,
     )
     val headline = TextStyle(
         fontFamily = Display,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 19.sp,
-        lineHeight = 24.sp,
+        fontWeight = Heading,
+        fontSize = 18.sp,
+        lineHeight = 23.sp,
     )
     val body = TextStyle(
         fontFamily = Body,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 23.sp,
     )
-    val bodyStrong = body.copy(fontWeight = FontWeight.Bold)
+    val bodyStrong = body.copy(fontWeight = FontWeight.SemiBold)
     val label = TextStyle(
         fontFamily = Body,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 19.sp,
+        fontFeatureSettings = "tnum",
     )
     val small = label.copy(fontSize = 12.5.sp, lineHeight = 17.sp)
-    /** Clock times: heavy Nunito, whose digits are all the same width so columns line up. */
+    /** Clock times, with tabular digits so the timeline's column lines up. */
     val time = TextStyle(
         fontFamily = Body,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize = 17.sp,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
         lineHeight = 22.sp,
+        fontFeatureSettings = "tnum",
     )
 }
 

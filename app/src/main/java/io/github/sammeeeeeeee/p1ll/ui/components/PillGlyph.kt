@@ -94,7 +94,7 @@ fun DrawScope.drawPillGlyph(shape: PillShape, color: Color) {
  * (or the dark surface), never from the background, so cool colours stay clean on cream.
  */
 fun DrawScope.drawGlyphBadge(shape: PillShape, color: Color, dark: Boolean = false) {
-    val tile = if (dark) lerp(Color(0xFF221C2E), color, 0.24f) else lerp(Color.White, color, 0.17f)
+    val tile = if (dark) lerp(Color(0xFF1C1D23), color, 0.24f) else lerp(Color.White, color, 0.17f)
     drawRoundRect(tile, cornerRadius = CornerRadius(size.minDimension * 0.32f))
     inset(size.minDimension * 0.2f) { drawPillGlyph(shape, color) }
 }

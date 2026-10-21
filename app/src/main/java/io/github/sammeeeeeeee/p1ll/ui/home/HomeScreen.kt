@@ -296,7 +296,7 @@ private fun DoneMark(modifier: Modifier) {
 private fun StatsRow(state: HomeState) {
     Row(Modifier.fillMaxWidth()) {
         val c = P1ll.colors
-        Stat(state.stats.streak, "day streak", Modifier.weight(1f), color = pillColor(1, c.dark))
+        Stat(state.stats.streak, "day streak", Modifier.weight(1f), color = pillColor(0, c.dark))
         Stat(state.stats.adherence, "last 30 days", Modifier.weight(1f), suffix = "%", color = c.accent)
         Stat(state.stats.taken, "doses taken", Modifier.weight(1f), color = pillColor(5, c.dark))
     }

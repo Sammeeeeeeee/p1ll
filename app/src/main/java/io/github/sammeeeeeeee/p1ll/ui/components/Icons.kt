@@ -8,12 +8,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 
-/** One consistent hand-drawn set: 24-unit grid, a soft 2.2 stroke, round ends. */
+/** One consistent hand-drawn set: 24-unit grid, a 2.0 stroke, round ends. */
 object Icons {
     val Plus by lazy { icon("M12 5v14M5 12h14") }
     val Minus by lazy { icon("M5.5 12h13") }
     val Close by lazy { icon("M6.5 6.5l11 11M17.5 6.5l-11 11") }
-    val Check by lazy { icon("M5 12.5l4.5 4.5L19 7.5", stroke = 2.6f) }
+    val Check by lazy { icon("M5 12.5l4.5 4.5L19 7.5", stroke = 2.4f) }
     val Back by lazy { icon("M14.5 5.5L8 12l6.5 6.5") }
     val ChevronRight by lazy { icon("M9.5 5.5L16 12l-6.5 6.5") }
     val ChevronDown by lazy { icon("M6.5 9.5l5.5 5.5 5.5-5.5") }
@@ -38,7 +38,7 @@ object Icons {
     val Flag by lazy { icon("M6 20.5V4.5M6 5h10.5l-2 3.5 2 3.5H6") }
 }
 
-private fun icon(vararg paths: String, stroke: Float = 2.2f): ImageVector =
+private fun icon(vararg paths: String, stroke: Float = 2f): ImageVector =
     ImageVector.Builder(
         defaultWidth = 24.dp,
         defaultHeight = 24.dp,

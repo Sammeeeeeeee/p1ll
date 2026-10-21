@@ -367,7 +367,7 @@ private fun Node(
             val x = size.width / 2
             val y = NodeY.toPx()
             val gap = 13.dp.toPx()
-            val w = 3.dp.toPx()
+            val w = 2.5.dp.toPx()
             // The day so far is a solid rounded line; the rest of it is a trail of round dots.
             val dots = PathEffect.dashPathEffect(floatArrayOf(0.01f, 7.dp.toPx()))
             fun segment(from: Float, to: Float, style: Rail) {
@@ -391,7 +391,7 @@ private fun Node(
                         if (due) color else railColor,
                         r - 1.5.dp.toPx(),
                         center,
-                        style = Stroke(if (due) 3.dp.toPx() else 2.5.dp.toPx()),
+                        style = Stroke(if (due) 2.5.dp.toPx() else 2.dp.toPx()),
                     )
                     if (due) drawCircle(color.copy(alpha = 0.18f), r - 2.dp.toPx(), center)
                     if (fill > 0f) drawCircle(color, (r + 1.dp.toPx()) * fill, center)
@@ -444,13 +444,13 @@ fun NowRow(now: ZonedDateTime, hasAbove: Boolean, hasBelow: Boolean, modifier: M
         Canvas(Modifier.weight(1f).fillMaxHeight()) {
             val x = RailWidth.toPx() / 2
             val y = size.height / 2
-            val w = 3.dp.toPx()
+            val w = 2.5.dp.toPx()
             val dots = PathEffect.dashPathEffect(floatArrayOf(0.01f, 7.dp.toPx()))
             if (hasAbove) drawLine(railColor, Offset(x, 0f), Offset(x, y - 9.dp.toPx()), w, StrokeCap.Round)
             if (hasBelow) drawLine(railColor, Offset(x, y + 9.dp.toPx()), Offset(x, size.height), w, StrokeCap.Round, dots)
             drawCircle(c.accent.copy(alpha = 0.25f), 8.dp.toPx(), Offset(x, y))
             drawCircle(c.accent, 4.5.dp.toPx(), Offset(x, y))
-            drawLine(c.accent, Offset(x + 14.dp.toPx(), y), Offset(size.width, y), 3.dp.toPx(), StrokeCap.Round, dots)
+            drawLine(c.accent, Offset(x + 14.dp.toPx(), y), Offset(size.width, y), 2.5.dp.toPx(), StrokeCap.Round, dots)
         }
     }
 }
