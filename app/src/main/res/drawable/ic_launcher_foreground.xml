@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One square of the chart: a day of four doses, three taken. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group>
+        <clip-path android:pathData="M44,31 H64 A13,13 0 0 1 77,44 V64 A13,13 0 0 1 64,77 H44 A13,13 0 0 1 31,64 V44 A13,13 0 0 1 44,31 Z" />
+        <path android:fillColor="#2E2E34" android:pathData="M31,31 H52.2 V52.2 H31 Z" />
+        <path android:fillColor="#3FD07A" android:pathData="M55.8,31 H77 V52.2 H55.8 Z" />
+        <path android:fillColor="#3FD07A" android:pathData="M55.8,55.8 H77 V77 H55.8 Z" />
+        <path android:fillColor="#3FD07A" android:pathData="M31,55.8 H52.2 V77 H31 Z" />
+    </group>
+</vector>
