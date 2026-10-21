@@ -252,8 +252,8 @@ fun EditorScreen(
                                 }
                                 .graphicsLayer { scaleX = lift; scaleY = lift }
                                 .clip(RoundedCornerShape(18.dp))
-                                .background(if (selected) c.raised else c.surface)
-                                .border(if (selected) 1.5.dp else 0.dp, if (selected) c.ink.copy(alpha = 0.7f) else c.surface, RoundedCornerShape(18.dp)),
+                                .background(if (selected) color.copy(alpha = 0.12f) else c.surface)
+                                .border(if (selected) 2.5.dp else 0.dp, if (selected) color else c.surface, RoundedCornerShape(18.dp)),
                             contentAlignment = Alignment.Center,
                         ) {
                             PillGlyph(shape, if (selected) color else c.ink3, Modifier.size(34.dp), badge = false)
@@ -516,8 +516,8 @@ private fun WeekdayPicker(mask: Int, onChange: (Int) -> Unit, modifier: Modifier
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         (0..6).map { (first.value - 1 + it) % 7 }.forEach { bit ->
             val on = mask and (1 shl bit) != 0
-            val bg by animateColorAsState(if (on) c.ink else c.raised, tween(180), label = "wd")
-            val fg by animateColorAsState(if (on) c.bg else c.ink2, tween(180), label = "wdText")
+            val bg by animateColorAsState(if (on) c.accent else c.raised, tween(180), label = "wd")
+            val fg by animateColorAsState(if (on) c.onAccent else c.ink2, tween(180), label = "wdText")
             Box(
                 Modifier
                     .size(40.dp)

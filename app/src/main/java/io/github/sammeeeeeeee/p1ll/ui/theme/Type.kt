@@ -12,94 +12,95 @@ import androidx.compose.ui.unit.sp
 import io.github.sammeeeeeeee.p1ll.R
 
 @OptIn(ExperimentalTextApi::class)
-private fun instrument(weight: Int, width: Float = 100f) = Font(
-    R.font.instrument_sans,
+private fun fredoka(weight: Int) = Font(
+    R.font.fredoka,
     FontWeight(weight),
-    variationSettings = FontVariation.Settings(FontVariation.weight(weight), FontVariation.width(width)),
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight), FontVariation.width(100f)),
 )
 
-val Instrument = FontFamily(instrument(400), instrument(500), instrument(600), instrument(700))
+@OptIn(ExperimentalTextApi::class)
+private fun nunito(weight: Int) = Font(
+    R.font.nunito,
+    FontWeight(weight),
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight)),
+)
 
-/** The narrow cut, for big numbers. */
-val InstrumentNarrow = FontFamily(instrument(600, 75f), instrument(700, 75f))
+/** Rounded and bubbly: headings, names and big numbers. */
+val Display = FontFamily(fredoka(400), fredoka(500), fredoka(600), fredoka(700))
+
+/** Rounded and calm, with tabular digits by default: everything you read. */
+val Body = FontFamily(nunito(400), nunito(500), nunito(600), nunito(700), nunito(800), nunito(900))
 
 private val trim = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)
 
 object Type {
     val hero = TextStyle(
-        fontFamily = InstrumentNarrow,
-        fontWeight = FontWeight.Bold,
-        fontSize = 104.sp,
-        lineHeight = 96.sp,
-        letterSpacing = (-3).sp,
-        fontFeatureSettings = "tnum",
+        fontFamily = Display,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 112.sp,
+        lineHeight = 104.sp,
         lineHeightStyle = trim,
     )
     val number = TextStyle(
-        fontFamily = InstrumentNarrow,
-        fontWeight = FontWeight.Bold,
+        fontFamily = Display,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 30.sp,
         lineHeight = 32.sp,
-        letterSpacing = (-0.5).sp,
-        fontFeatureSettings = "tnum",
         lineHeightStyle = trim,
     )
     val title = TextStyle(
-        fontFamily = Instrument,
+        fontFamily = Display,
         fontWeight = FontWeight.SemiBold,
         fontSize = 30.sp,
-        lineHeight = 34.sp,
-        letterSpacing = (-0.7).sp,
+        lineHeight = 36.sp,
     )
     val headline = TextStyle(
-        fontFamily = Instrument,
+        fontFamily = Display,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 18.sp,
-        lineHeight = 23.sp,
-        letterSpacing = (-0.2).sp,
+        fontSize = 19.sp,
+        lineHeight = 24.sp,
     )
     val body = TextStyle(
-        fontFamily = Instrument,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 22.sp,
-    )
-    val bodyStrong = body.copy(fontWeight = FontWeight.Medium)
-    val label = TextStyle(
-        fontFamily = Instrument,
+        fontFamily = Body,
         fontWeight = FontWeight.Medium,
-        fontSize = 13.5.sp,
-        lineHeight = 18.sp,
-        letterSpacing = 0.05.sp,
-        fontFeatureSettings = "tnum",
+        fontSize = 16.sp,
+        lineHeight = 23.sp,
     )
-    val small = label.copy(fontSize = 12.sp, lineHeight = 16.sp)
-    val caps = TextStyle(
-        fontFamily = Instrument,
+    val bodyStrong = body.copy(fontWeight = FontWeight.Bold)
+    val label = TextStyle(
+        fontFamily = Body,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 11.5.sp,
-        lineHeight = 14.sp,
-        letterSpacing = 1.3.sp,
+        fontSize = 14.sp,
+        lineHeight = 19.sp,
+    )
+    val small = label.copy(fontSize = 12.5.sp, lineHeight = 17.sp)
+    /** Clock times: heavy Nunito, whose digits are all the same width so columns line up. */
+    val time = TextStyle(
+        fontFamily = Body,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 17.sp,
+        lineHeight = 22.sp,
     )
 }
 
 val M3Type = Typography().let { t ->
-    fun TextStyle.i() = copy(fontFamily = Instrument)
+    fun TextStyle.body() = copy(fontFamily = Body)
+    fun TextStyle.display() = copy(fontFamily = Display)
     Typography(
-        displayLarge = t.displayLarge.copy(fontFamily = InstrumentNarrow, fontWeight = FontWeight.Bold),
-        displayMedium = t.displayMedium.copy(fontFamily = InstrumentNarrow, fontWeight = FontWeight.Bold),
-        displaySmall = t.displaySmall.i(),
-        headlineLarge = t.headlineLarge.i(),
-        headlineMedium = t.headlineMedium.i(),
-        headlineSmall = t.headlineSmall.i(),
-        titleLarge = t.titleLarge.i(),
-        titleMedium = t.titleMedium.i(),
-        titleSmall = t.titleSmall.i(),
-        bodyLarge = t.bodyLarge.i(),
-        bodyMedium = t.bodyMedium.i(),
-        bodySmall = t.bodySmall.i(),
-        labelLarge = t.labelLarge.i(),
-        labelMedium = t.labelMedium.i(),
-        labelSmall = t.labelSmall.i(),
+        displayLarge = t.displayLarge.display(),
+        displayMedium = t.displayMedium.display(),
+        displaySmall = t.displaySmall.display(),
+        headlineLarge = t.headlineLarge.display(),
+        headlineMedium = t.headlineMedium.display(),
+        headlineSmall = t.headlineSmall.display(),
+        titleLarge = t.titleLarge.display(),
+        titleMedium = t.titleMedium.body(),
+        titleSmall = t.titleSmall.body(),
+        bodyLarge = t.bodyLarge.body(),
+        bodyMedium = t.bodyMedium.body(),
+        bodySmall = t.bodySmall.body(),
+        labelLarge = t.labelLarge.body(),
+        labelMedium = t.labelMedium.body(),
+        labelSmall = t.labelSmall.body(),
     )
 }

@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.lerp
 import io.github.sammeeeeeeee.p1ll.data.PillShape
+import io.github.sammeeeeeeee.p1ll.ui.theme.P1ll
 
 /** The pill itself, drawn flat with one score line and one glint so it reads at any size. */
 fun DrawScope.drawPillGlyph(shape: PillShape, color: Color) {
@@ -88,13 +89,18 @@ fun DrawScope.drawPillGlyph(shape: PillShape, color: Color) {
     }
 }
 
-/** Glyph on a soft tinted disc: how pills appear in lists and notifications. */
-fun DrawScope.drawGlyphBadge(shape: PillShape, color: Color) {
-    drawCircle(color.copy(alpha = 0.16f))
+/**
+ * Glyph on a pale tile shaped like one of the chart's squares. The tint is mixed from white
+ * (or the dark surface), never from the background, so cool colours stay clean on cream.
+ */
+fun DrawScope.drawGlyphBadge(shape: PillShape, color: Color, dark: Boolean = false) {
+    val tile = if (dark) lerp(Color(0xFF221C2E), color, 0.24f) else lerp(Color.White, color, 0.17f)
+    drawRoundRect(tile, cornerRadius = CornerRadius(size.minDimension * 0.32f))
     inset(size.minDimension * 0.2f) { drawPillGlyph(shape, color) }
 }
 
 @Composable
 fun PillGlyph(shape: PillShape, color: Color, modifier: Modifier = Modifier, badge: Boolean = true) {
-    Canvas(modifier) { if (badge) drawGlyphBadge(shape, color) else drawPillGlyph(shape, color) }
+    val dark = P1ll.colors.dark
+    Canvas(modifier) { if (badge) drawGlyphBadge(shape, color, dark) else drawPillGlyph(shape, color) }
 }

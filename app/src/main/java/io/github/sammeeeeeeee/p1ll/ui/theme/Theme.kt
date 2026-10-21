@@ -66,11 +66,12 @@ fun P1llTheme(prefs: Prefs = Prefs(), content: @Composable () -> Unit) {
         cellVoid = animate(target.cellVoid),
         accent = animate(target.accent),
         onAccent = animate(target.onAccent),
+        accentSoft = animate(target.accentSoft),
     )
     val scheme = (if (dark) darkColorScheme() else lightColorScheme()).copy(
-        primary = palette.ink,
-        onPrimary = palette.bg,
-        primaryContainer = palette.raised,
+        primary = palette.accent,
+        onPrimary = palette.onAccent,
+        primaryContainer = palette.accentSoft,
         onPrimaryContainer = palette.ink,
         secondary = palette.ink2,
         secondaryContainer = palette.raised,
@@ -96,7 +97,7 @@ fun P1llTheme(prefs: Prefs = Prefs(), content: @Composable () -> Unit) {
             LocalPalette provides palette,
             LocalContentColor provides palette.ink,
             LocalTextStyle provides Type.body.copy(color = palette.ink),
-            LocalTextSelectionColors provides TextSelectionColors(palette.ink, palette.ink.copy(alpha = 0.18f)),
+            LocalTextSelectionColors provides TextSelectionColors(palette.accent, palette.accent.copy(alpha = 0.25f)),
             content = content,
         )
     }

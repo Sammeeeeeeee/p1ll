@@ -123,7 +123,7 @@ fun DaySheet(
                         Text(pill.name, style = Type.bodyStrong, maxLines = 1)
                         val at = slot.at?.let {
                             val t = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())
-                            " · ${if (slot.status == SlotStatus.TAKEN) "taken" else "skipped"} ${Fmt.time(context, t)}"
+                            ", ${if (slot.status == SlotStatus.TAKEN) "taken" else "skipped"} at ${Fmt.time(context, t)}"
                         } ?: ""
                         Text(Fmt.time(context, slot.minute) + at, style = Type.small, color = c.ink2)
                     }
@@ -149,7 +149,7 @@ fun DaySheet(
                     Column(Modifier.weight(1f)) {
                         Text(pill.name, style = Type.bodyStrong, maxLines = 1)
                         val t = Instant.ofEpochMilli(dose.at).atZone(ZoneId.systemDefault())
-                        Text("As needed · ${Fmt.time(context, t)}", style = Type.small, color = c.ink2)
+                        Text("As needed, at ${Fmt.time(context, t)}", style = Type.small, color = c.ink2)
                     }
                     Chip("Remove", false, {
                         feedback.undo()

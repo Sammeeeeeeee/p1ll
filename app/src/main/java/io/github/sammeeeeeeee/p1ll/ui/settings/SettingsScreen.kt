@@ -136,7 +136,7 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
                     onSelect = { mode -> onChange { it.copy(theme = mode) } },
                 )
                 Spacer(Modifier.height(18.dp))
-                Text("Chart colour", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp))
+                Text("App colour", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp))
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Accents.forEachIndexed { i, accent ->

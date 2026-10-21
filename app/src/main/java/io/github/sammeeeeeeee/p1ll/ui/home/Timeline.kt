@@ -59,7 +59,11 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -81,7 +85,6 @@ import io.github.sammeeeeeeee.p1ll.ui.components.PillGlyph
 import io.github.sammeeeeeeee.p1ll.ui.components.tappable
 import io.github.sammeeeeeeee.p1ll.ui.feedback.LocalFeedback
 import io.github.sammeeeeeeee.p1ll.ui.nav.shared
-import io.github.sammeeeeeeee.p1ll.ui.theme.InstrumentNarrow
 import io.github.sammeeeeeeee.p1ll.ui.theme.Motion
 import io.github.sammeeeeeeee.p1ll.ui.theme.P1ll
 import io.github.sammeeeeeeee.p1ll.ui.theme.Type
@@ -107,13 +110,7 @@ private val TimeWidth = 54.dp
 private val RailWidth = 30.dp
 private val NodeY = 23.dp
 
-private val TimeStyle = TextStyle(
-    fontFamily = InstrumentNarrow,
-    fontWeight = FontWeight.SemiBold,
-    fontSize = 19.sp,
-    lineHeight = 22.sp,
-    fontFeatureSettings = "tnum",
-)
+private val TimeStyle = Type.time
 
 data class DoseRow(
     val card: PillToday,
@@ -197,11 +194,24 @@ fun DoseRowView(
         onSkip = if (slot.status == SlotStatus.PENDING) ({ onSkip(slot) }) else null,
         modifier = modifier,
     ) {
+        val band = wash(color, c.dark, c.surface)
         Row(
             Modifier
                 .fillMaxWidth()
                 .height(IntrinsicSize.Min)
                 .background(c.bg)
+                .drawBehind {
+                    // A due dose sits on a soft wash of its pill's colour, reaching past the column edges.
+                    if (due) {
+                        val bleed = 10.dp.toPx()
+                        drawRoundRect(
+                            band,
+                            topLeft = Offset(-bleed, 3.dp.toPx()),
+                            size = Size(size.width + bleed * 2, size.height - 6.dp.toPx()),
+                            cornerRadius = CornerRadius(20.dp.toPx()),
+                        )
+                    }
+                }
                 .tappable(pressedScale = 0.985f) { onOpen(pill) },
         ) {
             Box(Modifier.width(TimeWidth).padding(top = 12.dp)) {
@@ -271,6 +281,10 @@ fun DoseRowView(
     }
 }
 
+/** A pale, still-saturated tint of a pill colour. Mixed from white, not the cream background, so blues don't go grey. */
+private fun wash(color: Color, dark: Boolean, surface: Color): Color =
+    if (dark) lerp(surface, color, 0.22f) else lerp(Color.White, color, 0.15f)
+
 private sealed interface Trailing {
     data object Take : Trailing
     data class Text(val text: String) : Trailing
@@ -282,9 +296,9 @@ private fun meta(pill: Pill): String {
     if (pill.dosage.isNotBlank()) parts += pill.dosage.trim()
     if (pill.optional) parts += "optional"
     val stock = pill.stock
-    if (stock != null && pill.refillAt != null && stock <= pill.refillAt) parts += "$stock left"
+    if (stock != null && pill.refillAt != null && stock <= pill.refillAt) parts += "only $stock left"
     if (parts.isEmpty()) parts += Describe.schedule(pill)
-    return parts.joinToString(" · ")
+    return parts.joinToString(", ")
 }
 
 @Composable
@@ -322,7 +336,8 @@ private fun Node(
     modifier: Modifier = Modifier,
 ) {
     val c = P1ll.colors
-    val railColor = lerp(c.line, c.ink3, 0.35f)
+    val railColor = lerp(c.line, c.ink3, 0.3f)
+    val nodeBg = if (due) wash(color, c.dark, c.surface) else c.bg
     val fill by animateFloatAsState(if (status == SlotStatus.TAKEN) 1f else 0f, spring(0.55f, 420f), label = "node")
     val check by animateFloatAsState(
         if (status == SlotStatus.TAKEN) 1f else 0f,
@@ -346,36 +361,37 @@ private fun Node(
         null
     }
     val checkPath = remember { Path() }
-    val dash = remember { PathEffect.dashPathEffect(floatArrayOf(6f, 7f)) }
 
     Box(modifier) {
         Canvas(Modifier.matchParentSize()) {
             val x = size.width / 2
             val y = NodeY.toPx()
-            val gap = 11.dp.toPx()
-            val w = 2.dp.toPx()
+            val gap = 13.dp.toPx()
+            val w = 3.dp.toPx()
+            // The day so far is a solid rounded line; the rest of it is a trail of round dots.
+            val dots = PathEffect.dashPathEffect(floatArrayOf(0.01f, 7.dp.toPx()))
             fun segment(from: Float, to: Float, style: Rail) {
                 if (style == Rail.NONE || to <= from) return
-                drawLine(railColor, Offset(x, from), Offset(x, to), w, StrokeCap.Round, if (style == Rail.DASHED) dash else null)
+                drawLine(railColor, Offset(x, from), Offset(x, to), w, StrokeCap.Round, if (style == Rail.DASHED) dots else null)
             }
             segment(0f, y - gap, top)
             segment(y + gap, size.height, bottom)
 
             val center = Offset(x, y)
-            val r = 7.5.dp.toPx()
+            val r = 8.5.dp.toPx()
             breath?.value?.let { b -> drawCircle(color.copy(alpha = 0.25f * (1f - b)), r * (1.3f + 1.2f * b), center) }
             when {
                 status == SlotStatus.SKIPPED -> {
-                    drawCircle(c.ink3, r - 1.dp.toPx(), center, style = Stroke(1.75.dp.toPx()))
-                    drawLine(c.ink3, center - Offset(r * 0.45f, 0f), center + Offset(r * 0.45f, 0f), 1.75.dp.toPx(), StrokeCap.Round)
+                    drawCircle(c.ink3, r - 1.5.dp.toPx(), center, style = Stroke(2.5.dp.toPx()))
+                    drawLine(c.ink3, center - Offset(r * 0.42f, 0f), center + Offset(r * 0.42f, 0f), 2.5.dp.toPx(), StrokeCap.Round)
                 }
                 else -> {
-                    drawCircle(c.bg, r, center)
+                    drawCircle(nodeBg, r, center)
                     drawCircle(
-                        if (due) color else c.ink3,
-                        r - 1.dp.toPx(),
+                        if (due) color else railColor,
+                        r - 1.5.dp.toPx(),
                         center,
-                        style = Stroke(if (due) 2.2.dp.toPx() else 1.75.dp.toPx()),
+                        style = Stroke(if (due) 3.dp.toPx() else 2.5.dp.toPx()),
                     )
                     if (due) drawCircle(color.copy(alpha = 0.18f), r - 2.dp.toPx(), center)
                     if (fill > 0f) drawCircle(color, (r + 1.dp.toPx()) * fill, center)
@@ -402,7 +418,7 @@ private fun DrawScope.drawCheck(path: Path, center: Offset, r: Float, t: Float, 
     measure.setPath(path, false)
     val seg = Path()
     measure.getSegment(0f, measure.length * t, seg, true)
-    drawPath(seg, color, style = Stroke(1.9.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(seg, color, style = Stroke(2.4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
 private fun DrawScope.drawBurst(center: Offset, r: Float, t: Float, color: Color) {
@@ -420,20 +436,21 @@ private fun DrawScope.drawBurst(center: Offset, r: Float, t: Float, color: Color
 fun NowRow(now: ZonedDateTime, hasAbove: Boolean, hasBelow: Boolean, modifier: Modifier = Modifier) {
     val c = P1ll.colors
     val context = LocalContext.current
-    val railColor = lerp(c.line, c.ink3, 0.35f)
-    val dash = remember { PathEffect.dashPathEffect(floatArrayOf(6f, 7f)) }
-    Row(modifier.fillMaxWidth().height(30.dp), verticalAlignment = Alignment.CenterVertically) {
+    val railColor = lerp(c.line, c.ink3, 0.3f)
+    Row(modifier.fillMaxWidth().height(34.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(TimeWidth)) {
             Text(Fmt.time(context, now), style = TimeStyle.copy(fontSize = 15.sp), color = c.accent)
         }
         Canvas(Modifier.weight(1f).fillMaxHeight()) {
             val x = RailWidth.toPx() / 2
             val y = size.height / 2
-            val w = 2.dp.toPx()
-            if (hasAbove) drawLine(railColor, Offset(x, 0f), Offset(x, y - 6.dp.toPx()), w, StrokeCap.Round)
-            if (hasBelow) drawLine(railColor, Offset(x, y + 6.dp.toPx()), Offset(x, size.height), w, StrokeCap.Round, dash)
-            drawCircle(c.accent, 4.dp.toPx(), Offset(x, y))
-            drawLine(c.accent.copy(alpha = 0.45f), Offset(x + 9.dp.toPx(), y), Offset(size.width, y), 1.5.dp.toPx(), StrokeCap.Round)
+            val w = 3.dp.toPx()
+            val dots = PathEffect.dashPathEffect(floatArrayOf(0.01f, 7.dp.toPx()))
+            if (hasAbove) drawLine(railColor, Offset(x, 0f), Offset(x, y - 9.dp.toPx()), w, StrokeCap.Round)
+            if (hasBelow) drawLine(railColor, Offset(x, y + 9.dp.toPx()), Offset(x, size.height), w, StrokeCap.Round, dots)
+            drawCircle(c.accent.copy(alpha = 0.25f), 8.dp.toPx(), Offset(x, y))
+            drawCircle(c.accent, 4.5.dp.toPx(), Offset(x, y))
+            drawLine(c.accent, Offset(x + 14.dp.toPx(), y), Offset(size.width, y), 3.dp.toPx(), StrokeCap.Round, dots)
         }
     }
 }
@@ -470,11 +487,11 @@ fun QuietRow(
                 card.phase == Phase.FINISHED -> pill.endDay?.let { "Ended ${Fmt.shortDate(it)}" } ?: "Finished"
                 onLog != null -> {
                     val last = card.lastTakenAt
-                    val lastText = last?.let { "last ${Fmt.ago((now.toInstant().toEpochMilli() - it) / 60_000)}" }
+                    val lastText = last?.let { "last one ${Fmt.ago((now.toInstant().toEpochMilli() - it) / 60_000)}" }
                     listOfNotNull(pill.dosage.takeIf { it.isNotBlank() }, lastText, if (card.takenToday > 1) "${card.takenToday} today" else null)
-                        .joinToString(" · ").ifEmpty { "As needed" }
+                        .joinToString(", ").ifEmpty { "As needed" }
                 }
-                else -> listOfNotNull(Describe.schedule(pill), card.next?.let { "next ${Describe.whenNext(context, it, now)}" }).joinToString(" · ")
+                else -> listOfNotNull(Describe.schedule(pill), card.next?.let { "next ${Describe.whenNext(context, it, now)}" }).joinToString(", ")
             }
             Text(sub, style = Type.label, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

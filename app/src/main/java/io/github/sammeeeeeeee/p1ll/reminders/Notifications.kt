@@ -79,7 +79,7 @@ object Notifications {
             Kind.DUE -> listOf(pill.dosage, context.getString(R.string.notif_due, time))
             Kind.SNOOZED -> listOf(context.getString(R.string.notif_snoozed, time))
             Kind.NAG -> listOf(context.getString(R.string.notif_still_due, time))
-        }.filter { it.isNotBlank() }.joinToString(" · ")
+        }.filter { it.isNotBlank() }.joinToString(", ")
 
         fun action(action: String, request: Int) = PendingIntent.getBroadcast(
             context,

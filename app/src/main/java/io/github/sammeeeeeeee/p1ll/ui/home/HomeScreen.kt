@@ -81,6 +81,7 @@ import io.github.sammeeeeeeee.p1ll.ui.nav.morph
 import io.github.sammeeeeeeee.p1ll.ui.theme.Motion
 import io.github.sammeeeeeeee.p1ll.ui.theme.P1ll
 import io.github.sammeeeeeeee.p1ll.ui.theme.Type
+import io.github.sammeeeeeeee.p1ll.ui.theme.pillColor
 import io.github.sammeeeeeeee.p1ll.ui.AppViewModel
 import java.time.temporal.ChronoUnit
 
@@ -233,7 +234,7 @@ private fun Hero(state: HomeState, modifier: Modifier = Modifier) {
             label = "hero",
         ) { m ->
             when (m) {
-                HeroMode.COUNT -> RollingNumber(state.left, Type.hero)
+                HeroMode.COUNT -> RollingNumber(state.left, Type.hero, color = c.accent)
                 HeroMode.DONE -> DoneMark(Modifier.size(92.dp))
                 HeroMode.NONE -> Text("0", style = Type.hero, color = c.ink3)
             }
@@ -251,13 +252,13 @@ private fun Hero(state: HomeState, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(4.dp))
             val due = state.due
             val sub = when {
-                due.isNotEmpty() -> "Due now · " + due.take(2).joinToString(", ") { it.pill.name } +
-                    if (due.size > 2) " +${due.size - 2}" else ""
+                due.isNotEmpty() -> "Time for " + due.take(2).joinToString(" and ") { it.pill.name } +
+                    if (due.size > 2) " and ${due.size - 2} more" else ""
                 state.nextUp != null -> {
                     val (pill, at) = state.nextUp
                     val mins = ChronoUnit.MINUTES.between(state.now, at)
-                    if (mins < 12 * 60) "Next · ${pill.name} ${Fmt.until(mins)}"
-                    else "Next · ${pill.name}, ${Describe.whenNext(context, at, state.now)}"
+                    if (mins < 12 * 60) "${pill.name} next, ${Fmt.until(mins)}"
+                    else "${pill.name} next, ${Describe.whenNext(context, at, state.now)}"
                 }
                 else -> "Add a pill to start your chart"
             }
@@ -294,21 +295,22 @@ private fun DoneMark(modifier: Modifier) {
 @Composable
 private fun StatsRow(state: HomeState) {
     Row(Modifier.fillMaxWidth()) {
-        Stat(state.stats.streak, if (state.stats.streak == 1) "day streak" else "day streak", Modifier.weight(1f))
-        Stat(state.stats.adherence, "last 30 days", Modifier.weight(1f), suffix = "%")
-        Stat(state.stats.taken, "doses taken", Modifier.weight(1f))
+        val c = P1ll.colors
+        Stat(state.stats.streak, "day streak", Modifier.weight(1f), color = pillColor(1, c.dark))
+        Stat(state.stats.adherence, "last 30 days", Modifier.weight(1f), suffix = "%", color = c.accent)
+        Stat(state.stats.taken, "doses taken", Modifier.weight(1f), color = pillColor(5, c.dark))
     }
 }
 
 @Composable
-private fun Stat(value: Int?, label: String, modifier: Modifier, suffix: String = "") {
+private fun Stat(value: Int?, label: String, modifier: Modifier, suffix: String = "", color: Color = P1ll.colors.ink) {
     val c = P1ll.colors
     Column(modifier) {
         Row(verticalAlignment = Alignment.Bottom) {
             if (value == null) Text("–", style = Type.number, color = c.ink3)
             else {
-                RollingNumber(value, Type.number)
-                if (suffix.isNotEmpty()) Text(suffix, style = Type.number, color = c.ink2)
+                RollingNumber(value, Type.number, color = color)
+                if (suffix.isNotEmpty()) Text(suffix, style = Type.number, color = color.copy(alpha = 0.6f))
             }
         }
         Spacer(Modifier.height(2.dp))
@@ -358,13 +360,13 @@ private fun Fab(onClick: () -> Unit, modifier: Modifier) {
         modifier
             .tappable(pressedScale = 0.88f, onClick = onClick)
             .morph("editor-new", radius = 22.dp)
-            .shadow(12.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black.copy(alpha = 0.35f), spotColor = Color.Black.copy(alpha = 0.35f))
+            .shadow(14.dp, RoundedCornerShape(22.dp), ambientColor = c.accent, spotColor = c.accent)
             .clip(RoundedCornerShape(22.dp))
-            .background(c.ink)
+            .background(c.accent)
             .size(64.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Plus, "Add a pill", tint = c.bg, modifier = Modifier.size(28.dp))
+        Icon(Icons.Plus, "Add a pill", tint = c.onAccent, modifier = Modifier.size(30.dp))
     }
 }
 

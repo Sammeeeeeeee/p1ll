@@ -104,8 +104,8 @@ fun Surface(
 }
 
 @Composable
-fun SectionLabel(text: String, modifier: Modifier = Modifier, color: Color = P1ll.colors.ink2) {
-    Text(text, style = Type.label.copy(fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold), color = color, modifier = modifier)
+fun SectionLabel(text: String, modifier: Modifier = Modifier, color: Color = P1ll.colors.ink) {
+    Text(text, style = Type.headline.copy(fontSize = 17.sp), color = color, modifier = modifier)
 }
 
 @Composable
@@ -137,8 +137,8 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     icon: ImageVector? = null,
-    background: Color = P1ll.colors.ink,
-    content: Color = P1ll.colors.bg,
+    background: Color = P1ll.colors.accent,
+    content: Color = P1ll.colors.onAccent,
 ) {
     val alpha by animateFloatAsState(if (enabled) 1f else 0.32f, tween(220), label = "enabled")
     Row(
@@ -243,7 +243,7 @@ fun <T> Segmented(
 fun Toggle(checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val c = P1ll.colors
     val feedback = LocalFeedback.current
-    val track by animateColorAsState(if (checked) c.ink else c.raised, tween(220), label = "track")
+    val track by animateColorAsState(if (checked) c.accent else c.raised, tween(220), label = "track")
     val progress by animateFloatAsState(if (checked) 1f else 0f, spring(0.62f, 420f), label = "thumb")
     val stretch = 1f - kotlin.math.abs(progress - 0.5f) * 2f
     Box(
@@ -264,7 +264,7 @@ fun Toggle(checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = M
                 .size(thumbW, 24.dp)
                 .shadow(2.dp, CircleShape)
                 .clip(CircleShape)
-                .background(if (checked) c.bg else c.surface),
+                .background(Color.White),
         )
     }
 }
@@ -279,8 +279,8 @@ fun Chip(
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val c = P1ll.colors
-    val bg by animateColorAsState(if (selected) c.ink else c.raised, tween(200), label = "chip")
-    val fg by animateColorAsState(if (selected) c.bg else c.ink, tween(200), label = "chipText")
+    val bg by animateColorAsState(if (selected) c.accent else c.raised, tween(200), label = "chip")
+    val fg by animateColorAsState(if (selected) c.onAccent else c.ink, tween(200), label = "chipText")
     Row(
         modifier
             .tappable(pressedScale = 0.92f, onClick = onClick)
@@ -369,7 +369,15 @@ fun SettingRow(label: String, modifier: Modifier = Modifier, hint: String? = nul
     }
 }
 
+/** Not a hairline: a soft rounded groove in the background colour, as if the panel were scored. */
 @Composable
 fun Divider(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(P1ll.colors.line))
+    Box(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp)
+            .height(2.dp)
+            .clip(CircleShape)
+            .background(P1ll.colors.bg),
+    )
 }
