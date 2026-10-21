@@ -1,30 +1,36 @@
 name: Release
 
-# Push a tag like v1.2.0 (or publish a release for one) and this builds, signs with the
-# committed keystore, and attaches the APK to that tag's GitHub release.
+# Push a tag like v1.2.0, publish a release for one, or run it by hand with a tag name:
+# it builds, signs with the committed keystore, and attaches the APK to that tag's release
+# (creating the tag on the run's commit if it doesn't exist yet).
 on:
   push:
     tags: ["v*"]
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release, e.g. v0.2.0"
+        required: true
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event.release.tag_name || github.ref_name }}
+  group: release-${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   apk:
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ github.event.release.tag_name || github.ref_name }}
+      TAG: ${{ inputs.tag || github.event.release.tag_name || github.ref_name }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || env.TAG }}
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -44,5 +50,5 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "p1ll-${VERSION_NAME}.apk" --clobber
           else
-            gh release create "$TAG" "p1ll-${VERSION_NAME}.apk" --title "p1ll ${VERSION_NAME}" --generate-notes
+            gh release create "$TAG" "p1ll-${VERSION_NAME}.apk" --title "p1ll ${VERSION_NAME}" --generate-notes --target "$GITHUB_SHA"
           fi
