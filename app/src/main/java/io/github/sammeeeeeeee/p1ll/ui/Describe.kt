@@ -32,8 +32,11 @@ object Describe {
         else -> "$n× a day"
     }
 
-    fun meta(p: Pill): String = listOf(p.dosage.trim(), schedule(p).replaceFirstChar { if (p.dosage.isBlank()) it else it.lowercaseChar() })
-        .filter { it.isNotEmpty() }.joinToString(", ")
+    fun meta(p: Pill): String {
+        val daily = p.schedule == ScheduleType.DAILY || (p.schedule == ScheduleType.WEEKDAYS && p.weekdays == Pill.ALL_WEEK)
+        val pattern = if (daily) "" else schedule(p).replaceFirstChar { if (p.dosage.isBlank()) it else it.lowercaseChar() }
+        return listOf(p.dosage.trim(), pattern).filter { it.isNotEmpty() }.joinToString(", ")
+    }
 
     /** "today 14:00", "tomorrow 08:00", "Fri 08:00", "12 Nov 08:00". */
     fun whenNext(context: Context, at: ZonedDateTime, now: ZonedDateTime): String {

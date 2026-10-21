@@ -14,6 +14,15 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.TransformOrigin
+import io.github.sammeeeeeeee.p1ll.ui.components.rememberFirstTime
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -64,7 +73,6 @@ import io.github.sammeeeeeeee.p1ll.data.Pill
 import io.github.sammeeeeeeee.p1ll.domain.Phase
 import io.github.sammeeeeeeee.p1ll.domain.PillToday
 import io.github.sammeeeeeeee.p1ll.domain.Slot
-import io.github.sammeeeeeeee.p1ll.domain.SlotStatus
 import io.github.sammeeeeeeee.p1ll.ui.Describe
 import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import io.github.sammeeeeeeee.p1ll.ui.HomeState
@@ -73,9 +81,9 @@ import io.github.sammeeeeeeee.p1ll.ui.components.ChartWave
 import io.github.sammeeeeeeee.p1ll.ui.components.CircleButton
 import io.github.sammeeeeeeee.p1ll.ui.components.DoseChart
 import io.github.sammeeeeeeee.p1ll.ui.components.Icons
-import io.github.sammeeeeeeee.p1ll.ui.components.PrimaryButton
 import io.github.sammeeeeeeee.p1ll.ui.components.RollingNumber
 import io.github.sammeeeeeeee.p1ll.ui.components.Surface
+import io.github.sammeeeeeeee.p1ll.ui.components.reveal
 import io.github.sammeeeeeeee.p1ll.ui.components.tappable
 import io.github.sammeeeeeeee.p1ll.ui.nav.morph
 import io.github.sammeeeeeeee.p1ll.ui.theme.Motion
@@ -116,83 +124,89 @@ fun HomeScreen(
     val asNeeded = state.cards.filter { it.phase == Phase.AS_NEEDED }
     val notToday = state.cards.filter { it.phase == Phase.NOT_TODAY }
 
-    Box(modifier.fillMaxSize().background(c.bg)) {
-        LazyColumn(
-            Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = top + 12.dp, bottom = bottom + 128.dp),
-        ) {
-            item("header") { Header(state, actions.settings) }
-            item("hero") { Hero(state, Modifier.padding(top = 26.dp, bottom = 26.dp)) }
-            item("chart") {
-                Surface(radius = 28.dp) {
-                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 18.dp)) {
-                        DoseChart(state.cells, c.accent, wave = wave, onDayClick = actions.day)
-                        Spacer(Modifier.height(18.dp))
-                        StatsRow(state)
-                    }
-                }
-            }
-            if (state.loaded && state.cards.isEmpty() && state.finished.isEmpty()) {
-                item("empty") { Empty(actions.add, Modifier.padding(top = 12.dp)) }
-            }
-            if (rows.isNotEmpty()) {
-                item("today") {
-                    val taken = rows.count { it.slot.status == SlotStatus.TAKEN }
-                    GroupHeader("Today", Modifier.animateItem(), trailing = "$taken of ${rows.size} taken")
-                }
-                rows.forEachIndexed { i, row ->
-                    if (i == split) {
-                        item("now") { NowRow(state.now, hasAbove = i > 0, hasBelow = true, Modifier.animateItem()) }
-                    }
-                    item("dose-${row.card.pill.id}-${row.slot.minute}") {
-                        DoseRowView(
-                            row = row,
-                            now = state.now,
-                            first = i == 0 && split != 0,
-                            last = i == rows.lastIndex && split != rows.size,
-                            onTake = { actions.take(row.card, it) },
-                            onSkip = { actions.skip(row.card, it) },
-                            onUntake = actions.untake,
-                            onOpen = actions.open,
-                            modifier = Modifier.animateItem(fadeInSpec = tween(220), placementSpec = spring(0.8f, 380f)),
-                        )
-                    }
-                }
-                if (split == rows.size) {
-                    item("now") { NowRow(state.now, hasAbove = true, hasBelow = false, Modifier.animateItem()) }
-                }
-            }
-            if (asNeeded.isNotEmpty()) {
-                item("as-needed") { GroupHeader("As needed", Modifier.animateItem()) }
-                items(asNeeded, key = { "an-${it.pill.id}" }) { card ->
-                    QuietRow(card, state.now, actions.log, actions.open, Modifier.animateItem())
-                }
-            }
-            if (notToday.isNotEmpty()) {
-                item("not-today") { GroupHeader("Not today", Modifier.animateItem()) }
-                items(notToday, key = { "nt-${it.pill.id}" }) { card ->
-                    QuietRow(card, state.now, null, actions.open, Modifier.animateItem())
-                }
-            }
-            if (state.finished.isNotEmpty()) {
-                item("finished") {
-                    FinishedHeader(state.finished.size, showFinished, Modifier.animateItem()) { showFinished = !showFinished }
-                }
-                if (showFinished) {
-                    items(state.finished, key = { "f-${it.id}" }) { pill ->
-                        QuietRow(
-                            PillToday(pill, emptyList(), Phase.FINISHED, null, null, 0, null),
-                            state.now,
-                            null,
-                            actions.open,
-                            Modifier.animateItem(),
-                        )
-                    }
-                }
-            }
-        }
+    val list = rememberLazyListState()
+    val railPhase = rememberInfiniteTransition(label = "rail").animateFloat(
+        0f, 1f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "railPhase",
+    )
 
-        Fab(actions.add, Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(20.dp))
+    Box(modifier.fillMaxSize().background(c.bg)) {
+        CompositionLocalProvider(LocalRailPhase provides railPhase) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                state = list,
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = top + 12.dp, bottom = bottom + 128.dp),
+            ) {
+                item("header") { Header(state, actions.settings, Modifier.reveal("header", 0).leaving(list, "header")) }
+                item("hero") { Hero(state, Modifier.reveal("hero", 1).leaving(list, "hero").padding(top = 26.dp, bottom = 26.dp)) }
+                item("chart") {
+                    Surface(Modifier.reveal("chart", 2).leaving(list, "chart", shrink = 0.05f), radius = 28.dp) {
+                        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 18.dp)) {
+                            DoseChart(state.cells, c.accent, wave = wave, onDayClick = actions.day)
+                            if (state.cards.isNotEmpty() || state.finished.isNotEmpty()) {
+                                Spacer(Modifier.height(18.dp))
+                                StatsRow(state)
+                            }
+                        }
+                    }
+                }
+                if (rows.isNotEmpty()) {
+                    item("today") { GroupHeader("Today", Modifier.animateItem().reveal("today", 3)) }
+                    rows.forEachIndexed { i, row ->
+                        if (i == split) {
+                            item("now") { NowRow(state.now, hasAbove = i > 0, hasBelow = true, Modifier.animateItem().reveal("now", 4 + i)) }
+                        }
+                        item("dose-${row.card.pill.id}-${row.slot.minute}") {
+                            DoseRowView(
+                                row = row,
+                                now = state.now,
+                                first = i == 0 && split != 0,
+                                last = i == rows.lastIndex && split != rows.size,
+                                onTake = { actions.take(row.card, it) },
+                                onSkip = { actions.skip(row.card, it) },
+                                onUntake = actions.untake,
+                                onOpen = actions.open,
+                                modifier = Modifier
+                                    .animateItem(fadeInSpec = tween(220), placementSpec = spring(0.8f, 380f))
+                                    .reveal("dose-${row.card.pill.id}-${row.slot.minute}", 4 + i + if (i >= split) 1 else 0),
+                            )
+                        }
+                    }
+                    if (split == rows.size) {
+                        item("now") { NowRow(state.now, hasAbove = true, hasBelow = false, Modifier.animateItem().reveal("now", 4 + rows.size)) }
+                    }
+                }
+                if (asNeeded.isNotEmpty()) {
+                    item("as-needed") { GroupHeader("As needed", Modifier.animateItem().reveal("as-needed", 9)) }
+                    items(asNeeded, key = { "an-${it.pill.id}" }) { card ->
+                        QuietRow(card, state.now, actions.log, actions.open, Modifier.animateItem().reveal("an-${card.pill.id}", 9))
+                    }
+                }
+                if (notToday.isNotEmpty()) {
+                    item("not-today") { GroupHeader("Not today", Modifier.animateItem().reveal("not-today", 9)) }
+                    items(notToday, key = { "nt-${it.pill.id}" }) { card ->
+                        QuietRow(card, state.now, null, actions.open, Modifier.animateItem().reveal("nt-${card.pill.id}", 9))
+                    }
+                }
+                if (state.finished.isNotEmpty()) {
+                    item("finished") {
+                        FinishedHeader(state.finished.size, showFinished, Modifier.animateItem().reveal("finished", 9)) { showFinished = !showFinished }
+                    }
+                    if (showFinished) {
+                        items(state.finished, key = { "f-${it.id}" }) { pill ->
+                            QuietRow(
+                                PillToday(pill, emptyList(), Phase.FINISHED, null, null, 0, null),
+                                state.now,
+                                null,
+                                actions.open,
+                                Modifier.animateItem().reveal("f-${pill.id}", 9),
+                            )
+                        }
+                    }
+                }
+            }
+
+        }
+        Fab(actions.add, Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(20.dp).reveal("fab", 5))
         UndoToast(
             undo,
             actions.undo,
@@ -202,13 +216,9 @@ fun HomeScreen(
 }
 
 @Composable
-private fun Header(state: HomeState, onSettings: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Column(Modifier.weight(1f)) {
-            Text(Fmt.weekday(state.today), style = Type.body, color = P1ll.colors.ink2)
-            Spacer(Modifier.height(2.dp))
-            Text(Fmt.dayMonth(state.today), style = Type.title)
-        }
+private fun Header(state: HomeState, onSettings: () -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(Fmt.dayMonth(state.today), style = Type.title, modifier = Modifier.weight(1f))
         CircleButton(Icons.Sliders, "Settings", onSettings)
     }
 }
@@ -224,8 +234,23 @@ private fun Hero(state: HomeState, modifier: Modifier = Modifier) {
         state.required > 0 -> HeroMode.DONE
         else -> HeroMode.NONE
     }
+    // Each change to the count lands with a squash-and-bounce.
+    val squash = remember { Animatable(1f) }
+    var lastLeft by remember { mutableIntStateOf(state.left) }
+    LaunchedEffect(state.left) {
+        if (state.left != lastLeft) {
+            lastLeft = state.left
+            squash.snapTo(0.82f)
+            squash.animateTo(1f, spring(dampingRatio = 0.38f, stiffness = 520f))
+        }
+    }
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         AnimatedContent(
+            modifier = Modifier.graphicsLayer {
+                scaleX = squash.value
+                scaleY = squash.value
+                transformOrigin = TransformOrigin(0f, 0.5f)
+            },
             targetState = mode,
             transitionSpec = {
                 (scaleIn(spring(0.55f, 380f), 0.6f) + fadeIn(tween(200)))
@@ -242,28 +267,30 @@ private fun Hero(state: HomeState, modifier: Modifier = Modifier) {
         Spacer(Modifier.width(18.dp))
         Column(Modifier.weight(1f)) {
             val headline = when (mode) {
-                HeroMode.COUNT -> if (state.left == 1) "dose left today" else "doses left today"
-                HeroMode.DONE -> "All done for today"
-                HeroMode.NONE -> if (state.cards.isEmpty()) "Nothing to take yet" else "Nothing due today"
+                HeroMode.COUNT -> if (state.left == 1) "dose left" else "doses left"
+                HeroMode.DONE -> "All done"
+                HeroMode.NONE -> if (state.cards.isEmpty()) "No pills" else "Nothing due"
             }
             AnimatedContent(headline, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) }, label = "h") {
                 Text(it, style = Type.headline)
             }
-            Spacer(Modifier.height(4.dp))
             val due = state.due
-            val sub = when {
-                due.isNotEmpty() -> "Time for " + due.take(2).joinToString(" and ") { it.pill.name } +
-                    if (due.size > 2) " and ${due.size - 2} more" else ""
+            val sub: String? = when {
+                due.isNotEmpty() -> due.take(2).joinToString(if (due.size > 2) ", " else " and ") { it.pill.name } +
+                    (if (due.size > 2) " and ${due.size - 2} more" else "") + " due"
                 state.nextUp != null -> {
                     val (pill, at) = state.nextUp
                     val mins = ChronoUnit.MINUTES.between(state.now, at)
-                    if (mins < 12 * 60) "${pill.name} next, ${Fmt.until(mins)}"
-                    else "${pill.name} next, ${Describe.whenNext(context, at, state.now)}"
+                    if (mins < 12 * 60) "${pill.name} ${Fmt.until(mins)}"
+                    else "${pill.name} ${Describe.whenNext(context, at, state.now)}"
                 }
-                else -> "Add a pill to start your chart"
+                else -> null
             }
-            AnimatedContent(sub, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) }, label = "s") {
-                Text(it, style = Type.label, color = if (due.isNotEmpty()) c.ink else c.ink2, maxLines = 2)
+            if (sub != null) {
+                Spacer(Modifier.height(4.dp))
+                AnimatedContent(sub, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) }, label = "s") {
+                    Text(it, style = Type.label, color = if (due.isNotEmpty()) c.ink else c.ink2, maxLines = 2)
+                }
             }
         }
     }
@@ -294,46 +321,31 @@ private fun DoneMark(modifier: Modifier) {
 
 @Composable
 private fun StatsRow(state: HomeState) {
+    val countUp = rememberFirstTime("stats")
     Row(Modifier.fillMaxWidth()) {
         val c = P1ll.colors
-        Stat(state.stats.streak, "day streak", Modifier.weight(1f), color = pillColor(0, c.dark))
-        Stat(state.stats.adherence, "last 30 days", Modifier.weight(1f), suffix = "%", color = c.accent)
-        Stat(state.stats.taken, "doses taken", Modifier.weight(1f), color = pillColor(5, c.dark))
+        Stat(state.stats.streak, "day streak", Modifier.weight(1f), color = pillColor(0, c.dark), countUp = countUp)
+        state.stats.adherence?.let { Stat(it, "30 days", Modifier.weight(1f), suffix = "%", color = c.accent, countUp = countUp) }
     }
 }
 
 @Composable
-private fun Stat(value: Int?, label: String, modifier: Modifier, suffix: String = "", color: Color = P1ll.colors.ink) {
+private fun Stat(
+    value: Int,
+    label: String,
+    modifier: Modifier,
+    suffix: String = "",
+    color: Color = P1ll.colors.ink,
+    countUp: Boolean = false,
+) {
     val c = P1ll.colors
     Column(modifier) {
         Row(verticalAlignment = Alignment.Bottom) {
-            if (value == null) Text("–", style = Type.number, color = c.ink3)
-            else {
-                RollingNumber(value, Type.number, color = color)
-                if (suffix.isNotEmpty()) Text(suffix, style = Type.number, color = color.copy(alpha = 0.6f))
-            }
+            RollingNumber(value, Type.number, color = color, countUp = countUp)
+            if (suffix.isNotEmpty()) Text(suffix, style = Type.number, color = color.copy(alpha = 0.6f))
         }
         Spacer(Modifier.height(2.dp))
         Text(label, style = Type.small, color = c.ink2)
-    }
-}
-
-@Composable
-private fun Empty(onAdd: () -> Unit, modifier: Modifier = Modifier) {
-    val c = P1ll.colors
-    Surface(modifier, radius = 28.dp) {
-        Column(Modifier.padding(22.dp)) {
-            Text("Your chart starts with one pill", style = Type.headline)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Add what you take and when. Every dose you take fills in today's square, " +
-                    "one slice at a time.",
-                style = Type.body,
-                color = c.ink2,
-            )
-            Spacer(Modifier.height(18.dp))
-            PrimaryButton("Add a pill", onAdd, icon = Icons.Plus)
-        }
     }
 }
 
@@ -418,4 +430,21 @@ private fun UndoToast(info: UndoInfo?, onUndo: () -> Unit, modifier: Modifier) {
             }
         }
     }
+}
+
+/**
+ * As a block scrolls off the top it lags behind the list, shrinks a little and fades, so the
+ * page peels away in layers instead of sliding as one sheet.
+ */
+private fun Modifier.leaving(list: LazyListState, key: Any, shrink: Float = 0.1f) = graphicsLayer {
+    val item = list.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key } ?: return@graphicsLayer
+    val past = (-item.offset).coerceAtLeast(0).toFloat()
+    if (past == 0f) return@graphicsLayer
+    val p = (past / item.size.coerceAtLeast(1)).coerceIn(0f, 1f)
+    translationY = past * 0.45f
+    alpha = 1f - 0.9f * p
+    val s = 1f - shrink * p
+    scaleX = s
+    scaleY = s
+    transformOrigin = TransformOrigin(0.5f, 1f)
 }

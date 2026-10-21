@@ -55,10 +55,10 @@ import io.github.sammeeeeeeee.p1ll.ui.components.Divider
 import io.github.sammeeeeeeee.p1ll.ui.components.DoseChart
 import io.github.sammeeeeeeee.p1ll.ui.components.GhostButton
 import io.github.sammeeeeeeee.p1ll.ui.components.Icons
-import io.github.sammeeeeeeee.p1ll.ui.components.SectionLabel
 import io.github.sammeeeeeeee.p1ll.ui.components.Segmented
 import io.github.sammeeeeeeee.p1ll.ui.components.SettingRow
 import io.github.sammeeeeeeee.p1ll.ui.components.Surface
+import io.github.sammeeeeeeee.p1ll.ui.components.enter
 import io.github.sammeeeeeeee.p1ll.ui.components.Toggle
 import io.github.sammeeeeeeee.p1ll.ui.components.tappable
 import io.github.sammeeeeeeee.p1ll.ui.feedback.LocalFeedback
@@ -98,18 +98,15 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
             Text("Settings", style = Type.title)
         }
 
+        Spacer(Modifier.height(20.dp))
         if (!notificationsOk || !exactOk) {
-            Spacer(Modifier.height(20.dp))
-            Surface(color = c.warn.copy(alpha = 0.12f)) {
+            Surface(Modifier.enter(0), color = c.warn.copy(alpha = 0.12f)) {
                 Column(Modifier.padding(18.dp)) {
-                    Text("Reminders can't reach you yet", style = Type.headline)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        if (!notificationsOk) "p1ll needs permission to post notifications."
-                        else "Exact alarms are off, so reminders may arrive a few minutes late.",
-                        style = Type.body,
-                        color = c.ink2,
-                    )
+                    Text(if (!notificationsOk) "Notifications off" else "Exact alarms off", style = Type.headline)
+                    if (notificationsOk) {
+                        Spacer(Modifier.height(4.dp))
+                        Text("Reminders may be a few minutes late.", style = Type.body, color = c.ink2)
+                    }
                     Spacer(Modifier.height(14.dp))
                     GhostButton("Allow", {
                         if (!notificationsOk && Build.VERSION.SDK_INT >= 33) {
@@ -124,10 +121,10 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
                     }, icon = Icons.Bell)
                 }
             }
+            Spacer(Modifier.height(12.dp))
         }
 
-        Label("Appearance")
-        Surface {
+        Surface(Modifier.enter(1)) {
             Column(Modifier.padding(14.dp)) {
                 Segmented(
                     ThemeMode.entries,
@@ -136,8 +133,6 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
                     onSelect = { mode -> onChange { it.copy(theme = mode) } },
                 )
                 Spacer(Modifier.height(18.dp))
-                Text("App colour", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp))
-                Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Accents.forEachIndexed { i, accent ->
                         val selected = i == prefs.accent
@@ -167,13 +162,13 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
             }
         }
 
-        Label("Reminders")
-        Surface {
+        Spacer(Modifier.height(12.dp))
+        Surface(Modifier.enter(2)) {
             Column(Modifier.padding(14.dp)) {
-                Text("Snooze for", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+                Text("Snooze", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
                 Segmented(listOf(5, 10, 15, 30), prefs.snoozeMinutes, label = { "$it min" }, onSelect = { m -> onChange { it.copy(snoozeMinutes = m) } })
                 Spacer(Modifier.height(18.dp))
-                Text("If I ignore a reminder, nudge me every", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+                Text("Remind again", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
                 Segmented(
                     listOf(0, 10, 15, 30),
                     prefs.nagMinutes,
@@ -183,9 +178,9 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
             }
         }
 
-        Label("Feel")
-        Surface {
-            SettingRow("Sounds", hint = "A note for each dose, a chord for the day") {
+        Spacer(Modifier.height(12.dp))
+        Surface(Modifier.enter(3)) {
+            SettingRow("Sounds") {
                 Toggle(prefs.sounds, { on ->
                     onChange { it.copy(sounds = on) }
                 })
@@ -194,8 +189,8 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
             SettingRow("Haptics") { Toggle(prefs.haptics, { on -> onChange { it.copy(haptics = on) } }) }
         }
 
-        Label("About")
-        Surface {
+        Spacer(Modifier.height(12.dp))
+        Surface(Modifier.enter(4)) {
             SettingRow("Version") { Text(BuildConfig.VERSION_NAME, style = Type.label, color = c.ink2) }
             Divider()
             Box(
@@ -203,17 +198,12 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Sammeeeeeeee/p1ll")))
                 },
             ) {
-                SettingRow("Source code", hint = "github.com/Sammeeeeeeee/p1ll") {
+                SettingRow("Source code") {
                     Icon(Icons.ChevronRight, null, tint = c.ink3, modifier = Modifier.size(20.dp))
                 }
             }
         }
     }
-}
-
-@Composable
-private fun Label(text: String) {
-    SectionLabel(text, Modifier.padding(start = 4.dp, top = 28.dp, bottom = 10.dp))
 }
 
 /** A made-up few months for previewing chart colours. */

@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,7 +60,6 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -67,7 +67,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -110,6 +109,14 @@ private val TimeWidth = 54.dp
 private val RailWidth = 30.dp
 private val NodeY = 23.dp
 
+/** A slow 0→1 loop shared by every dotted line, so the rest of the day drifts gently downwards. */
+val LocalRailPhase = staticCompositionLocalOf<State<Float>?> { null }
+
+private fun DrawScope.flowingDots(phase: State<Float>?): PathEffect {
+    val gap = 7.dp.toPx()
+    return PathEffect.dashPathEffect(floatArrayOf(0.01f, gap), gap - (phase?.value ?: 0f) * gap)
+}
+
 private val TimeStyle = Type.time
 
 data class DoseRow(
@@ -138,16 +145,9 @@ fun doseRows(cards: List<PillToday>): List<DoseRow> {
 }
 
 @Composable
-fun GroupHeader(title: String, modifier: Modifier = Modifier, trailing: String? = null) {
-    val c = P1ll.colors
+fun GroupHeader(title: String, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().padding(top = 34.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
         Text(title, style = Type.headline.copy(fontSize = 21.sp, lineHeight = 26.sp))
-        Spacer(Modifier.weight(1f))
-        if (trailing != null) {
-            AnimatedContent(trailing, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) }, label = "count") {
-                Text(it, style = Type.label, color = c.ink2)
-            }
-        }
     }
 }
 
@@ -249,18 +249,21 @@ fun DoseRowView(
                         modifier = if (row.primary) Modifier.shared("name-${pill.id}") else Modifier,
                     )
                 }
-                Spacer(Modifier.height(2.dp))
-                Text(meta(pill), style = Type.label, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val m = meta(pill, showStock = row.primary)
+                if (m.isNotEmpty()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(m, style = Type.label, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
             Spacer(Modifier.width(8.dp))
             Box(Modifier.heightIn(min = 46.dp).padding(top = 5.dp), contentAlignment = Alignment.TopEnd) {
-                val trailing = when {
+                val trailing: Trailing? = when {
                     due -> Trailing.Take
-                    slot.status == SlotStatus.TAKEN -> Trailing.Text(
-                        slot.at?.let { Fmt.time(context, Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())) } ?: "taken",
-                    )
+                    slot.status == SlotStatus.TAKEN -> slot.at?.let {
+                        Trailing.Text(Fmt.time(context, Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())))
+                    }
                     slot.status == SlotStatus.SKIPPED -> Trailing.Text("skipped")
-                    else -> Trailing.Text(Fmt.until((slot.minute - nowMinute).toLong()))
+                    else -> null
                 }
                 AnimatedContent(
                     trailing,
@@ -274,6 +277,7 @@ fun DoseRowView(
                     when (t) {
                         Trailing.Take -> ActionChip("Take", Icons.Check, color, onColor(color)) { onTake(slot) }
                         is Trailing.Text -> Text(t.text, style = Type.small, color = c.ink3, modifier = Modifier.padding(top = 11.dp))
+                        null -> Unit
                     }
                 }
             }
@@ -291,13 +295,12 @@ private sealed interface Trailing {
 }
 
 @Composable
-private fun meta(pill: Pill): String {
+private fun meta(pill: Pill, showStock: Boolean): String {
     val parts = mutableListOf<String>()
     if (pill.dosage.isNotBlank()) parts += pill.dosage.trim()
     if (pill.optional) parts += "optional"
     val stock = pill.stock
-    if (stock != null && pill.refillAt != null && stock <= pill.refillAt) parts += "only $stock left"
-    if (parts.isEmpty()) parts += Describe.schedule(pill)
+    if (showStock && stock != null && pill.refillAt != null && stock <= pill.refillAt) parts += "$stock left"
     return parts.joinToString(", ")
 }
 
@@ -336,6 +339,7 @@ private fun Node(
     modifier: Modifier = Modifier,
 ) {
     val c = P1ll.colors
+    val railPhase = LocalRailPhase.current
     val railColor = lerp(c.line, c.ink3, 0.3f)
     val nodeBg = if (due) wash(color, c.dark, c.surface) else c.bg
     val fill by animateFloatAsState(if (status == SlotStatus.TAKEN) 1f else 0f, spring(0.55f, 420f), label = "node")
@@ -369,7 +373,7 @@ private fun Node(
             val gap = 13.dp.toPx()
             val w = 2.5.dp.toPx()
             // The day so far is a solid rounded line; the rest of it is a trail of round dots.
-            val dots = PathEffect.dashPathEffect(floatArrayOf(0.01f, 7.dp.toPx()))
+            val dots = flowingDots(railPhase)
             fun segment(from: Float, to: Float, style: Rail) {
                 if (style == Rail.NONE || to <= from) return
                 drawLine(railColor, Offset(x, from), Offset(x, to), w, StrokeCap.Round, if (style == Rail.DASHED) dots else null)
@@ -435,17 +439,15 @@ private fun DrawScope.drawBurst(center: Offset, r: Float, t: Float, color: Color
 @Composable
 fun NowRow(now: ZonedDateTime, hasAbove: Boolean, hasBelow: Boolean, modifier: Modifier = Modifier) {
     val c = P1ll.colors
-    val context = LocalContext.current
+    val railPhase = LocalRailPhase.current
     val railColor = lerp(c.line, c.ink3, 0.3f)
     Row(modifier.fillMaxWidth().height(34.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(TimeWidth)) {
-            Text(Fmt.time(context, now), style = TimeStyle.copy(fontSize = 15.sp), color = c.accent)
-        }
+        Box(Modifier.width(TimeWidth))
         Canvas(Modifier.weight(1f).fillMaxHeight()) {
             val x = RailWidth.toPx() / 2
             val y = size.height / 2
             val w = 2.5.dp.toPx()
-            val dots = PathEffect.dashPathEffect(floatArrayOf(0.01f, 7.dp.toPx()))
+            val dots = flowingDots(railPhase)
             if (hasAbove) drawLine(railColor, Offset(x, 0f), Offset(x, y - 9.dp.toPx()), w, StrokeCap.Round)
             if (hasBelow) drawLine(railColor, Offset(x, y + 9.dp.toPx()), Offset(x, size.height), w, StrokeCap.Round, dots)
             drawCircle(c.accent.copy(alpha = 0.25f), 8.dp.toPx(), Offset(x, y))
@@ -484,16 +486,16 @@ fun QuietRow(
         Column(Modifier.weight(1f).graphicsLayer { alpha = dim }) {
             Text(pill.name, style = Type.headline, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.shared("name-${pill.id}"))
             val sub = when {
-                card.phase == Phase.FINISHED -> pill.endDay?.let { "Ended ${Fmt.shortDate(it)}" } ?: "Finished"
+                card.phase == Phase.FINISHED -> pill.endDay?.let { "Ended ${Fmt.shortDate(it)}" }.orEmpty()
                 onLog != null -> {
                     val last = card.lastTakenAt
-                    val lastText = last?.let { "last one ${Fmt.ago((now.toInstant().toEpochMilli() - it) / 60_000)}" }
+                    val lastText = last?.let { "taken ${Fmt.ago((now.toInstant().toEpochMilli() - it) / 60_000)}" }
                     listOfNotNull(pill.dosage.takeIf { it.isNotBlank() }, lastText, if (card.takenToday > 1) "${card.takenToday} today" else null)
-                        .joinToString(", ").ifEmpty { "As needed" }
+                        .joinToString(", ")
                 }
-                else -> listOfNotNull(Describe.schedule(pill), card.next?.let { "next ${Describe.whenNext(context, it, now)}" }).joinToString(", ")
+                else -> card.next?.let { Describe.whenNext(context, it, now).replaceFirstChar(Char::titlecase) } ?: Describe.schedule(pill)
             }
-            Text(sub, style = Type.label, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (sub.isNotEmpty()) Text(sub, style = Type.label, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (onLog != null) {
             Spacer(Modifier.width(8.dp))

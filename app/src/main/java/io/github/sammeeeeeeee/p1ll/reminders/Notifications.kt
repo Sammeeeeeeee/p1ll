@@ -27,7 +27,6 @@ import io.github.sammeeeeeeee.p1ll.MainActivity
 import io.github.sammeeeeeeee.p1ll.R
 import io.github.sammeeeeeeee.p1ll.data.Pill
 import io.github.sammeeeeeeee.p1ll.domain.slotTime
-import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import io.github.sammeeeeeeee.p1ll.ui.components.drawGlyphBadge
 import io.github.sammeeeeeeee.p1ll.ui.theme.pillColor
 import java.time.ZoneId
@@ -35,8 +34,6 @@ import java.time.ZoneId
 object Notifications {
     const val CHANNEL_DOSES = "doses"
     const val CHANNEL_SUPPLY = "supply"
-
-    enum class Kind { DUE, SNOOZED, NAG }
 
     fun ensureChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -46,7 +43,6 @@ object Notifications {
             context.getString(R.string.channel_doses),
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
-            description = context.getString(R.string.channel_doses_desc)
             setSound(
                 chime,
                 AudioAttributes.Builder()
@@ -61,7 +57,7 @@ object Notifications {
             CHANNEL_SUPPLY,
             context.getString(R.string.channel_supply),
             NotificationManager.IMPORTANCE_DEFAULT,
-        ).apply { description = context.getString(R.string.channel_supply_desc) }
+        )
         manager.createNotificationChannels(listOf(doses, supply))
     }
 
@@ -71,15 +67,10 @@ object Notifications {
         NotificationManagerCompat.from(context).cancel(id(pillId, minute))
     }
 
-    fun dose(context: Context, pill: Pill, day: Long, minute: Int, snoozeMinutes: Int, kind: Kind) {
+    fun dose(context: Context, pill: Pill, day: Long, minute: Int) {
         if (!allowed(context)) return
         val id = id(pill.id, minute)
-        val time = Fmt.time(context, minute)
-        val text = when (kind) {
-            Kind.DUE -> listOf(pill.dosage, context.getString(R.string.notif_due, time))
-            Kind.SNOOZED -> listOf(context.getString(R.string.notif_snoozed, time))
-            Kind.NAG -> listOf(context.getString(R.string.notif_still_due, time))
-        }.filter { it.isNotBlank() }.joinToString(", ")
+        val text = pill.dosage.trim()
 
         fun action(action: String, request: Int) = PendingIntent.getBroadcast(
             context,
@@ -106,11 +97,7 @@ object Notifications {
             .setAutoCancel(true)
             .setContentIntent(openApp(context, id))
             .addAction(R.drawable.ic_notif_check, context.getString(R.string.notif_taken), action(ActionReceiver.ACTION_TAKE, id))
-            .addAction(
-                R.drawable.ic_notif_snooze,
-                context.getString(R.string.notif_snooze, snoozeMinutes),
-                action(ActionReceiver.ACTION_SNOOZE, id),
-            )
+            .addAction(R.drawable.ic_notif_snooze, context.getString(R.string.notif_snooze), action(ActionReceiver.ACTION_SNOOZE, id))
             .build()
         @Suppress("MissingPermission")
         NotificationManagerCompat.from(context).notify(id, notification)

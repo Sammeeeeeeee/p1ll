@@ -129,7 +129,12 @@ fun DoseChart(
 
     // Entry: squares bloom outwards from today.
     val reveal = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { reveal.animateTo(1f, tween(1100, easing = FastOutSlowInEasing)) }
+    // Once the squares have bloomed, a band of light runs across them from today into the past.
+    val glint = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        reveal.animateTo(1f, tween(1100, easing = FastOutSlowInEasing))
+        glint.animateTo(1f, tween(1500, easing = LinearEasing))
+    }
 
     // Today's slices sweep in as doses are taken.
     val todaySlots = cells.last().slots
@@ -213,6 +218,9 @@ fun DoseChart(
                     val waveT = wave?.progress?.value ?: 1f
                     val waveFront = waveT * 30f
                     val waveStrength = wave?.strength ?: 0f
+                    val g = glint.value
+                    val band = (columns + 8f) * (1f - g) - 4f
+                    val sheenFade = sin(g * Math.PI.toFloat())
 
                     months.forEach { (col, layout) -> drawText(layout, topLeft = Offset(col * stepPx, 0f)) }
 
@@ -243,6 +251,13 @@ fun DoseChart(
                                 progress = if (isToday) { i -> slices.getOrNull(i)?.value ?: 0f } else null,
                                 alpha = shown,
                             )
+                            if (g in 0.001f..0.999f && cell.slots.isNotEmpty()) {
+                                val k = col - row * 0.6f - band
+                                val sheen = exp(-(k * k) / 2.4f) * sheenFade
+                                if (sheen > 0.02f) {
+                                    drawRoundRect(Color.White.copy(alpha = 0.38f * sheen), tl, Size(cellPx, cellPx), radius)
+                                }
+                            }
                         }
                     }
                 }

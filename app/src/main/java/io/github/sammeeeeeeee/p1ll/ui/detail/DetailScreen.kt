@@ -55,8 +55,8 @@ import io.github.sammeeeeeeee.p1ll.ui.components.GhostButton
 import io.github.sammeeeeeeee.p1ll.ui.components.Icons
 import io.github.sammeeeeeeee.p1ll.ui.components.PillGlyph
 import io.github.sammeeeeeeee.p1ll.ui.components.RollingNumber
-import io.github.sammeeeeeeee.p1ll.ui.components.SectionLabel
 import io.github.sammeeeeeeee.p1ll.ui.components.Surface
+import io.github.sammeeeeeeee.p1ll.ui.components.enter
 import io.github.sammeeeeeeee.p1ll.ui.feedback.LocalFeedback
 import io.github.sammeeeeeeee.p1ll.ui.nav.morph
 import io.github.sammeeeeeeee.p1ll.ui.nav.shared
@@ -118,45 +118,44 @@ fun DetailScreen(pillId: Long, snapshot: Snapshot, actions: DetailActions) {
             Text(meta, style = Type.body, color = c.ink2)
         }
         Spacer(Modifier.height(16.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.enter(2), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!pill.asNeeded) Fact(Icons.Clock, Describe.times(context, pill))
             when {
                 pill.endDay != null && pill.endDay < today -> Fact(Icons.Flag, "Ended ${Fmt.shortDate(pill.endDay)}")
                 pill.endDay != null -> Fact(Icons.Calendar, "Until ${Fmt.shortDate(pill.endDay)}")
                 pill.startDay > today -> Fact(Icons.Calendar, "Starts ${Fmt.shortDate(pill.startDay)}")
-                else -> Fact(Icons.Calendar, "Since ${Fmt.shortDate(pill.startDay)}")
             }
             if (pill.optional) Fact(Icons.Bell, "Optional")
         }
         Spacer(Modifier.height(22.dp))
 
-        Surface(radius = 28.dp) {
+        Surface(Modifier.enter(3), radius = 28.dp) {
             Column(Modifier.padding(16.dp)) {
-                SectionLabel("History")
-                Spacer(Modifier.height(12.dp))
                 DoseChart(cells, color, onDayClick = actions.day)
                 Spacer(Modifier.height(18.dp))
                 Row(Modifier.fillMaxWidth()) {
-                    BigStat(stat.streak, "day streak", Modifier.weight(1f))
-                    BigStat(stat.adherence, "last 30 days", Modifier.weight(1f), "%")
-                    BigStat(stat.taken, "taken", Modifier.weight(1f))
+                    if (!pill.asNeeded) {
+                        BigStat(stat.streak, "day streak", Modifier.weight(1f))
+                        stat.adherence?.let { BigStat(it, "30 days", Modifier.weight(1f), "%") }
+                    } else {
+                        BigStat(stat.taken, "taken", Modifier.weight(1f))
+                    }
                 }
             }
         }
 
         val stock = pill.stock
         AnimatedVisibility(stock != null) {
-            Surface(Modifier.padding(top = 12.dp), radius = 28.dp) {
+            Surface(Modifier.enter(4).padding(top = 12.dp), radius = 28.dp) {
                 Column(Modifier.padding(16.dp)) {
-                    SectionLabel("Supply")
-                    Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
                         RollingNumber(stock ?: 0, Type.number)
                         Text(" left", style = Type.body, color = c.ink2, modifier = Modifier.padding(bottom = 2.dp))
                         Spacer(Modifier.weight(1f))
                         val perDay = pill.times.size * pill.perDose
                         if (!pill.asNeeded && perDay > 0 && stock != null) {
-                            Text("about ${stock / perDay} days", style = Type.label, color = c.ink2)
+                            val days = stock / perDay
+                            if (days > 0) Text(if (days == 1) "1 day" else "$days days", style = Type.label, color = c.ink2)
                         }
                     }
                     val refillAt = pill.refillAt
@@ -191,17 +190,15 @@ fun DetailScreen(pillId: Long, snapshot: Snapshot, actions: DetailActions) {
         }
 
         if (pill.notes.isNotBlank()) {
-            Surface(Modifier.padding(top = 12.dp), radius = 28.dp) {
+            Surface(Modifier.enter(5).padding(top = 12.dp), radius = 28.dp) {
                 Column(Modifier.padding(16.dp)) {
-                    SectionLabel("Notes")
-                    Spacer(Modifier.height(8.dp))
                     Text(pill.notes, style = Type.body)
                 }
             }
         }
 
         Spacer(Modifier.height(24.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.enter(6), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (pill.endDay == null || pill.endDay >= today) {
                 GhostButton("Finish course", { actions.finish(pill) }, icon = Icons.Flag)
             }
@@ -217,7 +214,7 @@ fun DetailScreen(pillId: Long, snapshot: Snapshot, actions: DetailActions) {
             title = { Text("Delete ${pill.name}?", style = Type.headline) },
             text = {
                 Text(
-                    "Its history goes too, and the chart forgets it. To keep the history, finish the course instead.",
+                    "This deletes its history too. To keep it, finish the course instead.",
                     style = Type.body,
                     color = c.ink2,
                 )
@@ -228,7 +225,7 @@ fun DetailScreen(pillId: Long, snapshot: Snapshot, actions: DetailActions) {
                     actions.delete(pill)
                 }, color = c.danger)
             },
-            dismissButton = { GhostButton("Keep", { confirmDelete = false }) },
+            dismissButton = { GhostButton("Cancel", { confirmDelete = false }) },
         )
     }
 }
@@ -247,15 +244,12 @@ private fun Fact(icon: ImageVector, text: String) {
 }
 
 @Composable
-private fun BigStat(value: Int?, label: String, modifier: Modifier, suffix: String = "") {
+private fun BigStat(value: Int, label: String, modifier: Modifier, suffix: String = "") {
     val c = P1ll.colors
     Column(modifier) {
         Row(verticalAlignment = Alignment.Bottom) {
-            if (value == null) Text("–", style = Type.number, color = c.ink3)
-            else {
-                RollingNumber(value, Type.number)
-                if (suffix.isNotEmpty()) Text(suffix, style = Type.number, color = c.ink2)
-            }
+            RollingNumber(value, Type.number)
+            if (suffix.isNotEmpty()) Text(suffix, style = Type.number, color = c.ink2)
         }
         Spacer(Modifier.height(2.dp))
         Text(label, style = Type.small, color = c.ink2)

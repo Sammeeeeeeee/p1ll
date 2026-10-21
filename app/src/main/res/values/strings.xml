@@ -2,16 +2,11 @@
 <resources>
     <string name="app_name">p1ll</string>
     <string name="channel_doses">Dose reminders</string>
-    <string name="channel_doses_desc">A nudge when it\'s time to take something.</string>
     <string name="channel_supply">Running low</string>
-    <string name="channel_supply_desc">When a pill\'s supply drops to your refill point.</string>
-    <string name="notif_due">due %1$s</string>
-    <string name="notif_snoozed">Snoozed, due %1$s</string>
-    <string name="notif_still_due">Still due from %1$s</string>
-    <string name="notif_taken">Taken</string>
-    <string name="notif_snooze">Snooze %1$d min</string>
+    <string name="notif_taken">Take</string>
+    <string name="notif_snooze">Snooze</string>
     <string name="notif_low_title">Running low on %1$s</string>
-    <string name="notif_low_text">%1$s, about %2$s</string>
+    <string name="notif_low_text">%1$s, %2$s</string>
     <plurals name="left">
         <item quantity="one">%d left</item>
         <item quantity="other">%d left</item>

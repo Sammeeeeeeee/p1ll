@@ -39,6 +39,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -52,9 +55,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
 import io.github.sammeeeeeeee.p1ll.ui.feedback.LocalFeedback
+import io.github.sammeeeeeeee.p1ll.ui.theme.Motion
 import io.github.sammeeeeeeee.p1ll.ui.theme.P1ll
 import io.github.sammeeeeeeee.p1ll.ui.theme.Type
 import kotlinx.coroutines.flow.collectLatest
@@ -101,11 +103,6 @@ fun Surface(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(radius)).background(color), content = content)
-}
-
-@Composable
-fun SectionLabel(text: String, modifier: Modifier = Modifier, color: Color = P1ll.colors.ink) {
-    Text(text, style = Type.headline.copy(fontSize = 17.sp), color = color, modifier = modifier)
 }
 
 @Composable
@@ -205,11 +202,19 @@ fun <T> Segmented(
     ) {
         val each = maxWidth / options.size
         val index = options.indexOf(selected).coerceAtLeast(0)
-        val x by animateDpAsState(each * index, spring(0.72f, 520f), label = "thumb")
+        // The edge heading towards the new option moves first and the other follows, so the
+        // thumb stretches like jelly in flight and snaps back to size when it lands.
+        var previous by remember { mutableIntStateOf(index) }
+        val rightward = index >= previous
+        SideEffect { previous = index }
+        val fast = spring<Dp>(dampingRatio = 0.7f, stiffness = 900f)
+        val slow = spring<Dp>(dampingRatio = 0.75f, stiffness = 260f)
+        val left by animateDpAsState(each * index, if (rightward) slow else fast, label = "thumbLeft")
+        val right by animateDpAsState(each * (index + 1), if (rightward) fast else slow, label = "thumbRight")
         Box(
             Modifier
-                .offset { IntOffset(x.roundToPx(), 0) }
-                .width(each)
+                .offset { IntOffset(left.roundToPx(), 0) }
+                .width((right - left).coerceAtLeast(each * 0.5f))
                 .height(38.dp)
                 .shadow(if (c.dark) 0.dp else 1.5.dp, RoundedCornerShape(12.dp), ambientColor = Color.Black.copy(alpha = 0.2f))
                 .clip(RoundedCornerShape(12.dp))
@@ -301,14 +306,26 @@ fun Chip(
     }
 }
 
-/** Digits that roll individually: up when the number grows, down when it shrinks. */
+/**
+ * Digits that roll individually: up when the number grows, down when it shrinks. With [countUp]
+ * the number first spins up from zero when it appears.
+ */
 @Composable
 fun RollingNumber(
     value: Int,
     style: TextStyle,
     modifier: Modifier = Modifier,
     color: Color = P1ll.colors.ink,
+    countUp: Boolean = false,
 ) {
+    val climb = remember { Animatable(if (countUp && value > 0) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (climb.value < 1f) climb.animateTo(1f, tween(950, delayMillis = 250, easing = Motion.decelerate))
+    }
+    if (climb.value < 1f) {
+        Text((value * climb.value).toInt().toString(), style = style, color = color, modifier = modifier)
+        return
+    }
     val text = value.toString()
     Row(modifier) {
         text.forEachIndexed { i, ch ->

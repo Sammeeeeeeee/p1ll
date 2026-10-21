@@ -44,11 +44,15 @@ fun Pill.isActiveOn(day: Long): Boolean {
     }
 }
 
-/** Scheduled minutes for [day]. A new pill's first day skips slots that had long passed when it was added. */
+/**
+ * Scheduled minutes for [day]. A pill that starts on the day it was added skips slots that had
+ * long passed by then; a backdated pill counts every slot.
+ */
 fun Pill.slotsOn(day: Long, zone: ZoneId): List<Int> {
     if (asNeeded || !isActiveOn(day)) return emptyList()
     val created = Instant.ofEpochMilli(createdAt).atZone(zone)
-    if (created.toLocalDate().toEpochDay() == day) {
+    val createdDay = created.toLocalDate().toEpochDay()
+    if (createdDay == day && startDay >= createdDay) {
         val cutoff = created.hour * 60 + created.minute - CREATION_GRACE_MIN
         return times.filter { it >= cutoff }
     }
@@ -102,6 +106,16 @@ fun Pill.nextOccurrence(
         return t
     }
     return null
+}
+
+/** Every dose from [Pill.startDay] up to [now] as taken at its scheduled time, skipping [logged] (day to minute). */
+fun Pill.pastDoses(now: ZonedDateTime, logged: Set<Pair<Long, Int>>): List<Dose> {
+    val zone = now.zone
+    return (startDay..now.toLocalDate().toEpochDay()).flatMap { day ->
+        slotsOn(day, zone)
+            .filter { (day to it) !in logged && slotTime(day, it, zone).isBefore(now) }
+            .map { Dose(pillId = id, day = day, minute = it, status = DoseStatus.TAKEN, at = slotTime(day, it, zone).toInstant().toEpochMilli()) }
+    }
 }
 
 /** The next unhandled dose of this pill after [now], across all its slots. */

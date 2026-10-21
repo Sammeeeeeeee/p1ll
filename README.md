@@ -1,6 +1,6 @@
 # p1ll
 
-A pill tracker built around a chart like GitHub's contribution graph. Each square is one day, cut into one slice per dose, clockwise from twelve o'clock in time order. Take every dose and the square closes into a solid block.
+Pill tracker for Android. A year chart shows one square per day, split into one slice per dose.
 
 <p>
   <img src="docs/screenshots/home-light.png" width="32%" alt="Home, light" />
@@ -8,15 +8,15 @@ A pill tracker built around a chart like GitHub's contribution graph. Each squar
   <img src="docs/screenshots/editor-light.png" width="32%" alt="Editor" />
 </p>
 
-## What it does
+## Features
 
-- **Pills**: name, dose, shape and colour. Schedules can be every day, chosen weekdays, every N days, or as needed, with any number of reminder times.
-- **End dates**: a course stops reminding after its last day and moves to *Finished*, and its history stays in the chart.
-- **Optional pills**: you still get reminders, but they never count as missed.
-- **Reminders**: a notification with **Taken** and **Snooze** buttons. You can also set repeat nudges until you act on a reminder (Settings → Reminders).
-- **Home**: shows doses left today and what's due next, then the year chart, then a card per pill. Tap the round button or swipe right to take a dose; swipe left to skip. Tap the dots to fix a single dose, or tap any chart square to edit that day.
-- **Supply** (optional): counts down as you take doses and warns you at your refill point.
-- **Feel**: each dose plays the next note of a pentatonic scale, and the day's last dose plays a chord. Haptics use Android's composed vibration primitives where the phone supports them. Predictive back scrubs the real screen transition, so the card-to-detail morph follows your thumb.
+- Schedules for every day, chosen weekdays, every N days, or as needed
+- Notifications with Take and Snooze, and optional repeats
+- End dates, with history kept
+- Optional pills, never counted as missed
+- Supply count with a refill warning
+- Swipe right to take, left to skip, tap a chart square to edit that day
+- Backdate a pill, or fill in any past day from the chart
 
 ## Build
 
@@ -31,15 +31,15 @@ Requires JDK 17+ and the Android SDK (compileSdk 36).
 
 ## Releases and signing
 
-Push a tag and CI publishes a signed APK to that tag's GitHub release:
+Push a tag and CI attaches a signed APK to its GitHub release:
 
 ```sh
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-The version name comes from the tag (`v1.2.3` gives `1.2.3`, with version code `10203`).
+`v1.2.3` builds version name `1.2.3`, version code `10203`.
 
-**The release keystore and its passwords are committed on purpose**, in `keystore/`. That's what keeps builds reproducible and lets every CI run sign without any secrets. The trade-off: anyone with this repo can sign an APK that Android will accept as an update to p1ll. [Android's own guidance](https://developer.android.com/studio/publish/app-signing#secure-shared-keystore) is to keep keys out of public source control. To change that later, move the files into GitHub Secrets and rotate the key. Rotating means existing installs must uninstall before they can take the newly signed build.
+The release keystore and its passwords are committed in `keystore/`, so CI signs without secrets. Anyone with this repo can sign an APK that installs as an update to p1ll. Moving the key to GitHub Secrets means rotating it, after which existing installs must uninstall before updating.
 
 Signing certificate SHA-256:
 
@@ -49,6 +49,6 @@ Signing certificate SHA-256:
 
 ## Notes
 
-- Exact reminders use `USE_EXACT_ALARM`, which Android 13+ grants at install. Google Play restricts it to alarm and calendar apps, so a Play build would need the `SCHEDULE_EXACT_ALARM` permission flow instead ([Android 14 exact-alarm changes](https://developer.android.com/about/versions/14/changes/schedule-exact-alarms)).
-- All reminders run off a single alarm. When it fires, everything due is posted together and the next alarm is armed. This keeps doses at the same time from being throttled under Doze, and lets the app catch up after a reboot.
-- Typefaces: [Red Hat Display and Red Hat Text](https://github.com/RedHatOfficial/RedHatFont), SIL Open Font License (`licenses/`).
+- Reminders use `USE_EXACT_ALARM`, granted at install on Android 13+. Play allows it only for alarm and calendar apps, so a Play build would need `SCHEDULE_EXACT_ALARM`.
+- One alarm drives all reminders, so doses due together aren't throttled under Doze and missed ones post after a reboot.
+- Fonts: [Red Hat Display and Red Hat Text](https://github.com/RedHatOfficial/RedHatFont), SIL Open Font License (`licenses/`).

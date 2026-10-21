@@ -84,7 +84,7 @@ object Reminders {
             val at = slotTime(day, minute, zone).toInstant().toEpochMilli()
             val key = "$day|${pill.id}|$minute"
             if (at > nowMs || at <= since || key in notified || !pending(pill.id, day, minute)) continue
-            Notifications.dose(context, pill, day, minute, settings.snoozeMinutes, Notifications.Kind.DUE)
+            Notifications.dose(context, pill, day, minute)
             notified += key
             if (nag > 0) follow += FollowUp(pill.id, day, minute, nowMs + nag, 1, snoozed = false)
         }
@@ -94,8 +94,7 @@ object Reminders {
         for (f in fired) {
             if (!pending(f.pillId, f.day, f.minute)) continue
             val pill = pills.first { it.id == f.pillId }
-            val kind = if (f.snoozed) Notifications.Kind.SNOOZED else Notifications.Kind.NAG
-            Notifications.dose(context, pill, f.day, f.minute, settings.snoozeMinutes, kind)
+            Notifications.dose(context, pill, f.day, f.minute)
             if (nag > 0 && f.attempt < MAX_NAGS) {
                 follow += f.copy(dueAt = nowMs + nag, attempt = f.attempt + 1, snoozed = false)
             }
