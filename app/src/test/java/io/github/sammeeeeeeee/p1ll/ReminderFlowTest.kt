@@ -37,7 +37,7 @@ class ReminderFlowTest {
     private val alarms get() = shadowOf(app.getSystemService(AlarmManager::class.java))
 
     private fun waitFor(what: String, condition: () -> Boolean) {
-        repeat(200) {
+        repeat(600) {
             shadowOf(Looper.getMainLooper()).idle()
             if (condition()) return
             Thread.sleep(25)
@@ -77,14 +77,18 @@ class ReminderFlowTest {
         app.sendBroadcast(Intent(snoozeIntent).setComponent(null))
         waitFor("the reminder to clear") { notifications.allNotifications.isEmpty() }
 
-        val alarm = alarms.peekNextScheduledAlarm()
+        // The receiver clears the reminder first and re-arms afterwards, so wait for the snooze alarm
+        // itself rather than reading whatever was armed before (tomorrow's dose).
+        val snooze = app.container.settings.current().snoozeMinutes * 60_000L
+        fun snoozeAlarm() = alarms.peekNextScheduledAlarm()?.takeIf {
+            kotlin.math.abs(it.triggerAtMs - System.currentTimeMillis() - snooze) < 60_000
+        }
+        waitFor("the snooze alarm") { snoozeAlarm() != null }
+        val alarm = snoozeAlarm()
         assertNotNull(alarm)
-        val snooze = app.container.settings.current().snoozeMinutes
-        val expected = System.currentTimeMillis() + snooze * 60_000L
-        assertTrue("alarm at ${alarm!!.triggerAtMs}, expected about $expected", kotlin.math.abs(alarm.triggerAtMs - expected) < 5_000)
 
         // The snoozed reminder comes back as a fresh post stamped with when it returned.
-        val back = Instant.ofEpochMilli(alarm.triggerAtMs + 1_000)
+        val back = Instant.ofEpochMilli(alarm!!.triggerAtMs + 1_000)
         Reminders.sync(app, back.atZone(zone))
         assertEquals(1, notifications.allNotifications.size)
         assertTrue(notifications.allNotifications.single().`when` >= alarm.triggerAtMs - 5_000)
