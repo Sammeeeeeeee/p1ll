@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 sealed interface Screen {
@@ -92,8 +93,13 @@ fun Modifier.shared(key: String): Modifier {
 
 class Navigator internal constructor(
     internal val stack: MutableList<Screen>,
-    private val go: (Screen) -> Unit,
+    internal val state: SeekableTransitionState<Screen>,
+    private val scope: CoroutineScope,
 ) {
+    private fun go(target: Screen) {
+        scope.launch { state.animateTo(target) }
+    }
+
     val current: Screen get() = stack.last()
 
     fun push(screen: Screen) {
@@ -114,6 +120,12 @@ class Navigator internal constructor(
     }
 }
 
+@Composable
+fun rememberNavigator(): Navigator {
+    val scope = rememberCoroutineScope()
+    return remember { Navigator(mutableStateListOf(Screen.Home), SeekableTransitionState(Screen.Home), scope) }
+}
+
 /**
  * Screens live in one seekable transition. A predictive back swipe scrubs that transition
  * directly, so the shared-element morphs follow the thumb and finish or spring back from
@@ -121,12 +133,11 @@ class Navigator internal constructor(
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun NavHost(content: @Composable (Screen, Navigator) -> Unit) {
-    val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
-    val state = remember { SeekableTransitionState<Screen>(Screen.Home) }
+fun NavHost(navigator: Navigator = rememberNavigator(), content: @Composable (Screen, Navigator) -> Unit) {
+    val stack = navigator.stack
+    val state = navigator.state
     val transition = rememberTransition(state, label = "nav")
     val scope = rememberCoroutineScope()
-    val navigator = remember { Navigator(stack) { target -> scope.launch { state.animateTo(target) } } }
 
     PredictiveBackHandler(enabled = stack.size > 1) { events ->
         val target = stack[stack.size - 2]

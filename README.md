@@ -11,12 +11,13 @@ Pill tracker for Android. A year chart shows one square per day, split into one 
 ## Features
 
 - Schedules for every day, chosen weekdays, every N days, or as needed
-- Notifications with Take and Snooze, and optional repeats
+- Notifications with Take (opens the app and ticks the dose off) and Snooze, and optional repeats
 - End dates, with history kept
 - Optional pills, never counted as missed
 - Supply count with a refill warning
-- Swipe right to take, left to skip, tap a chart square to edit that day
-- Backdate a pill, or fill in any past day from the chart
+- Swipe right to take, left to skip
+- Page back through earlier days with the arrows, a sideways swipe on the header, or a tap on the chart, and fill in what was missed
+- Backdate a pill and mark its past doses taken
 
 ## Build
 
@@ -51,4 +52,5 @@ Signing certificate SHA-256:
 
 - Reminders use `USE_EXACT_ALARM`, granted at install on Android 13+. Play allows it only for alarm and calendar apps, so a Play build would need `SCHEDULE_EXACT_ALARM`.
 - One alarm drives all reminders, so doses due together aren't throttled under Doze and missed ones post after a reboot.
+- On Pixel 9 and 10, Android 16's Notification organizer can file individual notifications as silent. If reminders arrive without sound, exclude p1ll under Settings › Notifications › Notification organizer.
 - Fonts: [Red Hat Display and Red Hat Text](https://github.com/RedHatOfficial/RedHatFont), SIL Open Font License (`licenses/`).

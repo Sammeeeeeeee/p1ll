@@ -3,6 +3,8 @@ package io.github.sammeeeeeeee.p1ll.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -47,6 +49,7 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
@@ -97,6 +100,8 @@ fun DoseChart(
     wave: ChartWave? = null,
     cellSize: Dp = 15.dp,
     gap: Dp = 4.dp,
+    /** An earlier day being looked at; it gets its own ring and its slices animate like today's. */
+    selected: Long? = null,
     onDayClick: ((Long) -> Unit)? = null,
 ) {
     if (cells.isEmpty()) return
@@ -136,14 +141,16 @@ fun DoseChart(
         glint.animateTo(1f, tween(1500, easing = LinearEasing))
     }
 
-    // Today's slices sweep in as doses are taken.
+    // The day in focus (today, or the one being looked back at) sweeps its slices in as doses are taken.
+    val focus = selected?.takeIf { it in cells.first().day..today } ?: today
     val todaySlots = cells.last().slots
-    val slices = remember(todaySlots.size) {
-        List(todaySlots.size) { Animatable(if (todaySlots[it] == SlotStatus.TAKEN) 1f else 0f) }
+    val focusSlots = cells[(focus - cells.first().day).toInt()].slots
+    val slices = remember(focus, focusSlots.size) {
+        List(focusSlots.size) { Animatable(if (focusSlots[it] == SlotStatus.TAKEN) 1f else 0f) }
     }
-    LaunchedEffect(todaySlots) {
+    LaunchedEffect(slices, focusSlots) {
         coroutineScope {
-            todaySlots.forEachIndexed { i, s ->
+            focusSlots.forEachIndexed { i, s ->
                 launch { slices[i].animateTo(if (s == SlotStatus.TAKEN) 1f else 0f, spring(0.82f, 110f)) }
             }
         }
@@ -156,6 +163,17 @@ fun DoseChart(
 
     val path = remember { Path() }
     val scroll = rememberScrollState()
+    // Keep the day in focus in view when it's further back than the chart is scrolled.
+    val density = LocalDensity.current
+    LaunchedEffect(focus) {
+        val stepPx = with(density) { step.toPx() }
+        val fromRight = (columns - 1 - ((focus - gridStart) / 7).toInt()) * stepPx
+        val viewport = scroll.viewportSize.toFloat()
+        if (viewport <= 0f) return@LaunchedEffect
+        if (fromRight < scroll.value || fromRight + stepPx * 2 > scroll.value + viewport) {
+            scroll.animateScrollTo((fromRight - viewport / 2).toInt().coerceIn(0, scroll.maxValue), spring(1f, 220f))
+        }
+    }
     val weekdayNames = remember(firstDow) {
         (0..6).map { firstDow.plus(it.toLong()).getDisplayName(TextStyle.SHORT, Locale.getDefault()) }
     }
@@ -235,7 +253,7 @@ fun DoseChart(
                         val tl = Offset(col * stepPx, top + row * stepPx)
                         var s = (0.35f + 0.65f * easeOutBack(shown)) * (1f + 0.28f * bump)
                         if (cell.day == popped) s *= pop.value
-                        val isToday = cell.day == today
+                        val inFocus = cell.day == focus
                         scale(s, s, pivot = tl + Offset(cellPx / 2, cellPx / 2)) {
                             drawCell(
                                 cell = cell,
@@ -248,7 +266,7 @@ fun DoseChart(
                                 void = lerp(c.cellVoid, accent, (bump * 0.25f).coerceAtMost(0.4f)),
                                 skipped = c.ink3.copy(alpha = 0.45f),
                                 separator = background,
-                                progress = if (isToday) { i -> slices.getOrNull(i)?.value ?: 0f } else null,
+                                progress = if (inFocus) { i -> slices.getOrNull(i)?.value ?: 0f } else null,
                                 alpha = shown,
                             )
                             if (g in 0.001f..0.999f && cell.slots.isNotEmpty()) {
@@ -267,8 +285,46 @@ fun DoseChart(
                     modifier = Modifier.offset(x = step * todayCol - 4.dp, y = labelHeight + step * todayRow - 4.dp),
                     cellSize = cellSize,
                 )
+                SelectedRing(
+                    col = ((focus - gridStart) / 7).toInt(),
+                    row = rowOf(focus),
+                    shown = focus != today,
+                    step = step,
+                    top = labelHeight,
+                    cellSize = cellSize,
+                    color = accent,
+                )
             }
         }
+    }
+}
+
+/** Marks the earlier day on screen; glides from square to square as you page through days. */
+@Composable
+private fun SelectedRing(col: Int, row: Int, shown: Boolean, step: Dp, top: Dp, cellSize: Dp, color: Color) {
+    val glide = spring<Dp>(dampingRatio = 0.72f, stiffness = 420f)
+    val x by animateDpAsState(step * col - 4.dp, glide, label = "ringX")
+    val y by animateDpAsState(top + step * row - 4.dp, glide, label = "ringY")
+    val appear by animateFloatAsState(if (shown) 1f else 0f, spring(0.55f, 420f), label = "ring")
+    if (appear <= 0.01f) return
+    Canvas(
+        Modifier
+            .offset(x, y)
+            .size(cellSize + 8.dp)
+            .graphicsLayer {
+                scaleX = 0.6f + 0.4f * appear
+                scaleY = 0.6f + 0.4f * appear
+                alpha = appear.coerceIn(0f, 1f)
+            },
+    ) {
+        val inset = 1.dp.toPx()
+        drawRoundRect(
+            color,
+            topLeft = Offset(inset, inset),
+            size = Size(size.width - inset * 2, size.height - inset * 2),
+            cornerRadius = CornerRadius(cellSize.toPx() * 0.3f + 3.dp.toPx()),
+            style = Stroke(2.dp.toPx()),
+        )
     }
 }
 

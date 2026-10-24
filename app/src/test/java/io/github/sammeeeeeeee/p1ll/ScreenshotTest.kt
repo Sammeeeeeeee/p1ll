@@ -13,6 +13,7 @@ import io.github.sammeeeeeeee.p1ll.data.Prefs
 import io.github.sammeeeeeeee.p1ll.data.ScheduleType
 import io.github.sammeeeeeeee.p1ll.data.ThemeMode
 import io.github.sammeeeeeeee.p1ll.domain.indexDoses
+import io.github.sammeeeeeeee.p1ll.domain.slotTime
 import io.github.sammeeeeeeee.p1ll.domain.slotsOn
 import io.github.sammeeeeeeee.p1ll.ui.Snapshot
 import io.github.sammeeeeeeee.p1ll.ui.buildHome
@@ -63,7 +64,9 @@ class ScreenshotTest {
             val streakZone = day > today - 12
             for (p in pills) for (m in p.slotsOn(day, zone)) {
                 val chance = if (streakZone) 1.0 else 0.86
-                if (random.nextDouble() < chance) doses += Dose(id++, p.id, day, m, DoseStatus.TAKEN, 0)
+                // Taken a few minutes after the reminder, varying by day so the times look lived-in.
+                val at = slotTime(day, m, ZoneId.systemDefault()).plusMinutes(m % 7 + day % 9).toInstant().toEpochMilli()
+                if (random.nextDouble() < chance) doses += Dose(id++, p.id, day, m, DoseStatus.TAKEN, at)
             }
             if (random.nextDouble() < 0.12) doses += Dose(id++, 4, day, 700, DoseStatus.TAKEN, 0)
         }
@@ -76,7 +79,7 @@ class ScreenshotTest {
         return Snapshot(pills, doses, indexDoses(doses), now, loaded = true)
     }
 
-    private val noHome = HomeActions({ _, _ -> }, { _, _ -> }, {}, {}, {}, {}, {}, {}, {})
+    private val noHome = HomeActions({ _, _ -> }, { _, _ -> }, {}, {}, {}, {}, {}, {}, { _, _ -> }, {})
 
     private fun shot(name: String, dark: Boolean = false, content: @Composable () -> Unit) {
         compose.mainClock.autoAdvance = false
@@ -95,6 +98,16 @@ class ScreenshotTest {
     @Test
     fun homeDark() = shot("home-dark", dark = true) {
         HomeScreen(buildHome(snapshot()), null, rememberChartWave(), noHome)
+    }
+
+    @Test
+    fun homeYesterday() = shot("home-yesterday") {
+        // Yesterday's lunchtime Metformin was missed, so the day waits to be filled in.
+        val s = snapshot().let { s ->
+            val doses = s.doses.filterNot { it.day == today - 1 && it.pillId == 2L && it.minute == 780 }
+            s.copy(doses = doses, index = indexDoses(doses))
+        }
+        HomeScreen(buildHome(s, today - 1), null, rememberChartWave(), noHome)
     }
 
     @Test

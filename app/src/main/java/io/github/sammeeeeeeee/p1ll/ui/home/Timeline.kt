@@ -164,6 +164,8 @@ fun DoseRowView(
     onUntake: (Slot) -> Unit,
     onOpen: (Pill) -> Unit,
     modifier: Modifier = Modifier,
+    /** False on an earlier day: nothing is due any more, missed doses just wait to be filled in. */
+    live: Boolean = true,
 ) {
     val c = P1ll.colors
     val context = LocalContext.current
@@ -171,8 +173,9 @@ fun DoseRowView(
     val slot = row.slot
     val color = pillColor(pill.color, c.dark)
     val nowMinute = now.hour * 60 + now.minute
-    val past = slot.minute <= nowMinute
-    val due = slot.status == SlotStatus.PENDING && past
+    val past = !live || slot.minute <= nowMinute
+    val due = slot.status == SlotStatus.PENDING && past && live
+    val missed = slot.status == SlotStatus.PENDING && !live
     val done = slot.status != SlotStatus.PENDING
     val rail = if (past) Rail.SOLID else Rail.DASHED
 
@@ -259,6 +262,7 @@ fun DoseRowView(
             Box(Modifier.heightIn(min = 46.dp).padding(top = 5.dp), contentAlignment = Alignment.TopEnd) {
                 val trailing: Trailing? = when {
                     due -> Trailing.Take
+                    missed -> Trailing.Fill
                     slot.status == SlotStatus.TAKEN -> slot.at?.let {
                         Trailing.Text(Fmt.time(context, Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())))
                     }
@@ -276,6 +280,7 @@ fun DoseRowView(
                 ) { t ->
                     when (t) {
                         Trailing.Take -> ActionChip("Take", Icons.Check, color, onColor(color)) { onTake(slot) }
+                        Trailing.Fill -> ActionChip("Taken", Icons.Check, c.raised, c.ink) { onTake(slot) }
                         is Trailing.Text -> Text(t.text, style = Type.small, color = c.ink3, modifier = Modifier.padding(top = 11.dp))
                         null -> Unit
                     }
@@ -291,6 +296,7 @@ private fun wash(color: Color, dark: Boolean, surface: Color): Color =
 
 private sealed interface Trailing {
     data object Take : Trailing
+    data object Fill : Trailing
     data class Text(val text: String) : Trailing
 }
 
@@ -465,6 +471,8 @@ fun QuietRow(
     onLog: ((PillToday) -> Unit)?,
     onOpen: (Pill) -> Unit,
     modifier: Modifier = Modifier,
+    /** On an earlier day logging asks for a time first, so the row doesn't flash "Logged" straight away. */
+    live: Boolean = true,
 ) {
     val c = P1ll.colors
     val context = LocalContext.current
@@ -487,6 +495,15 @@ fun QuietRow(
             Text(pill.name, style = Type.headline, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.shared("name-${pill.id}"))
             val sub = when {
                 card.phase == Phase.FINISHED -> pill.endDay?.let { "Ended ${Fmt.shortDate(it)}" }.orEmpty()
+                !live -> {
+                    val last = card.lastTakenAt?.let { Fmt.time(context, Instant.ofEpochMilli(it).atZone(now.zone)) }
+                    val taken = when {
+                        last == null -> null
+                        card.takenToday == 1 -> "taken $last"
+                        else -> "${card.takenToday} taken, last $last"
+                    }
+                    listOfNotNull(pill.dosage.takeIf { it.isNotBlank() }, taken).joinToString(", ")
+                }
                 onLog != null -> {
                     val last = card.lastTakenAt
                     val lastText = last?.let { "taken ${Fmt.ago((now.toInstant().toEpochMilli() - it) / 60_000)}" }
@@ -511,7 +528,7 @@ fun QuietRow(
             }, label = "log") { flashed ->
                 if (flashed) ActionChip("Logged", Icons.Check, color, onColor(color)) {}
                 else ActionChip("Log", Icons.Plus, c.raised, c.ink) {
-                    logged++
+                    if (live) logged++
                     onLog(card)
                 }
             }

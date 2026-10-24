@@ -27,6 +27,7 @@ import io.github.sammeeeeeeee.p1ll.MainActivity
 import io.github.sammeeeeeeee.p1ll.R
 import io.github.sammeeeeeeee.p1ll.data.Pill
 import io.github.sammeeeeeeee.p1ll.domain.slotTime
+import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import io.github.sammeeeeeeee.p1ll.ui.components.drawGlyphBadge
 import io.github.sammeeeeeeee.p1ll.ui.theme.pillColor
 import java.time.ZoneId
@@ -67,20 +68,38 @@ object Notifications {
         NotificationManagerCompat.from(context).cancel(id(pillId, minute))
     }
 
-    fun dose(context: Context, pill: Pill, day: Long, minute: Int) {
+    /**
+     * [repostedAt] marks a snoozed or repeated reminder: it replaces any copy still showing with a
+     * fresh post stamped at that time, so Android treats it as a new alert rather than a quiet update.
+     */
+    fun dose(context: Context, pill: Pill, day: Long, minute: Int, repostedAt: Long? = null) {
         if (!allowed(context)) return
         val id = id(pill.id, minute)
-        val text = pill.dosage.trim()
+        val due = Fmt.time(context, minute)
+        val dosage = pill.dosage.trim()
+        val text = if (dosage.isEmpty()) context.getString(R.string.notif_due, due)
+        else context.getString(R.string.notif_dose_due, dosage, due)
+        val data = Uri.parse("p1ll://dose/${pill.id}/$day/$minute")
 
-        fun action(action: String, request: Int) = PendingIntent.getBroadcast(
+        fun Intent.dose() = setData(data)
+            .putExtra(ActionReceiver.EXTRA_PILL, pill.id)
+            .putExtra(ActionReceiver.EXTRA_DAY, day)
+            .putExtra(ActionReceiver.EXTRA_MINUTE, minute)
+
+        // Take opens the app, which records the dose in front of you; Snooze stays in the background.
+        val take = PendingIntent.getActivity(
             context,
-            request,
-            Intent(context, ActionReceiver::class.java)
-                .setAction(action)
-                .setData(Uri.parse("p1ll://dose/${pill.id}/$day/$minute"))
-                .putExtra(ActionReceiver.EXTRA_PILL, pill.id)
-                .putExtra(ActionReceiver.EXTRA_DAY, day)
-                .putExtra(ActionReceiver.EXTRA_MINUTE, minute),
+            id,
+            Intent(context, MainActivity::class.java)
+                .setAction(MainActivity.ACTION_TAKE)
+                .dose()
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val snooze = PendingIntent.getBroadcast(
+            context,
+            id,
+            Intent(context, ActionReceiver::class.java).setAction(ActionReceiver.ACTION_SNOOZE).dose(),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
@@ -92,15 +111,30 @@ object Notifications {
             .setColor(pillColor(pill.color, dark = false).toArgb())
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setWhen(slotTime(day, minute, ZoneId.systemDefault()).toInstant().toEpochMilli())
+            .setWhen(repostedAt ?: slotTime(day, minute, ZoneId.systemDefault()).toInstant().toEpochMilli())
             .setShowWhen(true)
             .setAutoCancel(true)
             .setContentIntent(openApp(context, id))
-            .addAction(R.drawable.ic_notif_check, context.getString(R.string.notif_taken), action(ActionReceiver.ACTION_TAKE, id))
-            .addAction(R.drawable.ic_notif_snooze, context.getString(R.string.notif_snooze), action(ActionReceiver.ACTION_SNOOZE, id))
+            .addAction(R.drawable.ic_notif_check, context.getString(R.string.notif_taken), take)
+            .addAction(R.drawable.ic_notif_snooze, context.getString(R.string.notif_snooze), snooze)
             .build()
+        val manager = NotificationManagerCompat.from(context)
+        if (repostedAt != null) manager.cancel(id)
         @Suppress("MissingPermission")
-        NotificationManagerCompat.from(context).notify(id, notification)
+        manager.notify(id, notification)
+    }
+
+    enum class Health { OK, OFF, SILENT }
+
+    /** Whether reminders can alert: besides the app-wide permission, a long-press can turn the channel down to silent. */
+    fun health(context: Context): Health {
+        if (!allowed(context)) return Health.OFF
+        val channel = context.getSystemService(NotificationManager::class.java).getNotificationChannel(CHANNEL_DOSES) ?: return Health.OK
+        return when {
+            channel.importance == NotificationManager.IMPORTANCE_NONE -> Health.OFF
+            channel.importance < NotificationManager.IMPORTANCE_DEFAULT -> Health.SILENT
+            else -> Health.OK
+        }
     }
 
     fun lowStock(context: Context, pill: Pill) {

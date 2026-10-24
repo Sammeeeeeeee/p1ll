@@ -175,6 +175,21 @@ fun stats(cells: List<DayCell>, today: Long, taken: Int): Stats {
     return Stats(streak, adherence, taken)
 }
 
+/**
+ * An earlier day as it stands now: every pill that was due, with missed doses still pending so
+ * they can be filled in. As-needed pills carry what was logged that day.
+ */
+fun buildPastDay(pills: List<Pill>, index: DoseIndex, day: Long, zone: ZoneId): List<PillToday> =
+    pills.filter { it.isActiveOn(day) }.mapNotNull { pill ->
+        val taken = index.on(pill.id, day).filter { it.status == DoseStatus.TAKEN }
+        val last = taken.maxOfOrNull { it.at }
+        if (pill.asNeeded) return@mapNotNull PillToday(pill, emptyList(), Phase.AS_NEEDED, null, null, taken.size, last)
+        val slots = pill.plan(day, zone, index)
+        if (slots.isEmpty()) return@mapNotNull null
+        val target = slots.firstOrNull { it.status == SlotStatus.PENDING }
+        PillToday(pill, slots, if (target == null) Phase.DONE else Phase.DUE, target, null, taken.size, last)
+    }.sortedWith(compareBy<PillToday> { it.phase.ordinal }.thenBy { it.pill.name.lowercase() })
+
 // ── Today ────────────────────────────────────────────────────────────────────────────────────
 
 enum class Phase { DUE, LATER, AS_NEEDED, DONE, NOT_TODAY, FINISHED }

@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,7 +15,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.sammeeeeeeee.p1ll.data.Pill
+import io.github.sammeeeeeeee.p1ll.domain.Slot
 import io.github.sammeeeeeeee.p1ll.domain.SlotStatus
+import io.github.sammeeeeeeee.p1ll.domain.plan
 import io.github.sammeeeeeeee.p1ll.reminders.Notifications
 import io.github.sammeeeeeeee.p1ll.ui.components.BounceOverscrollFactory
 import io.github.sammeeeeeeee.p1ll.ui.components.LocalReveal
@@ -29,8 +33,11 @@ import io.github.sammeeeeeeee.p1ll.ui.home.HomeActions
 import io.github.sammeeeeeeee.p1ll.ui.home.HomeScreen
 import io.github.sammeeeeeeee.p1ll.ui.nav.NavHost
 import io.github.sammeeeeeeee.p1ll.ui.nav.Screen
+import io.github.sammeeeeeeee.p1ll.ui.nav.rememberNavigator
 import io.github.sammeeeeeeee.p1ll.ui.settings.SettingsScreen
 import io.github.sammeeeeeeee.p1ll.ui.theme.P1llTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private data class OpenDay(val day: Long, val pillId: Long?)
@@ -48,6 +55,35 @@ fun App(vm: AppViewModel) {
     var openDay by remember { mutableStateOf<OpenDay?>(null) }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     val reveal = rememberReveal()
+    val navigator = rememberNavigator()
+
+    fun take(pill: Pill, slot: Slot) {
+        val state = vm.home.value
+        val completes = !pill.optional && state.left == 1 && slot.status == SlotStatus.PENDING && slot.day == state.day
+        if (completes) feedback.complete() else feedback.taken(state.takenToday + 1)
+        // The ripple runs out from today's square, so it only plays for today.
+        if (!pill.optional && state.isToday) scope.launch { wave.play(strong = completes) }
+        vm.take(slot, "${pill.name} taken")
+    }
+
+    // Take on a reminder: come home to the dose's day, let the screen settle, then take it in view.
+    val reminderTake by vm.reminderTake.collectAsStateWithLifecycle()
+    LaunchedEffect(reminderTake) {
+        val request = reminderTake ?: return@LaunchedEffect
+        openDay = null
+        navigator.popTo(Screen.Home)
+        vm.showDay(request.day)
+        val loaded = vm.snapshot.first { it.loaded }
+        delay(if (reveal.opening) 1100 else 550)
+        val latest = vm.snapshot.value.takeIf { it.loaded } ?: loaded
+        val pill = latest.pills.find { it.id == request.pillId }
+        val slot = pill?.let { p ->
+            p.plan(request.day, latest.now.zone, latest.index).firstOrNull { it.minute == request.minute }
+                ?: Slot(p.id, request.day, request.minute, SlotStatus.PENDING)
+        }
+        if (pill != null && slot != null && slot.status == SlotStatus.PENDING) take(pill, slot)
+        vm.reminderTakeHandled(request)
+    }
 
     P1llTheme(prefs) {
         CompositionLocalProvider(
@@ -55,19 +91,14 @@ fun App(vm: AppViewModel) {
             LocalReveal provides reveal,
             LocalOverscrollFactory provides BounceOverscrollFactory,
         ) {
-            NavHost { screen, nav ->
+            NavHost(navigator) { screen, nav ->
                 when (screen) {
                     Screen.Home -> HomeScreen(
                         state = home,
                         undo = undo,
                         wave = wave,
                         actions = HomeActions(
-                            take = { card, slot ->
-                                val completes = !card.pill.optional && home.left == 1 && slot.status == SlotStatus.PENDING
-                                if (completes) feedback.complete() else feedback.taken(home.takenToday + 1)
-                                if (!card.pill.optional) scope.launch { wave.play(strong = completes) }
-                                vm.take(slot, "${card.pill.name} taken")
-                            },
+                            take = { card, slot -> take(card.pill, slot) },
                             skip = { _, slot ->
                                 feedback.tick()
                                 vm.skip(slot)
@@ -83,7 +114,11 @@ fun App(vm: AppViewModel) {
                             open = { nav.push(Screen.Detail(it.id)) },
                             add = { nav.push(Screen.Editor(null, fromFab = true)) },
                             settings = { nav.push(Screen.Settings) },
-                            day = { openDay = OpenDay(it, null) },
+                            showDay = vm::showDay,
+                            logAt = { card, minute ->
+                                feedback.taken(home.takenToday + 1)
+                                vm.logAt(card.pill.id, home.day, minute)
+                            },
                             undo = vm::undo,
                         ),
                     )

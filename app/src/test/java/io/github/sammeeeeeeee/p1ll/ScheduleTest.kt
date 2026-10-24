@@ -8,6 +8,7 @@ import io.github.sammeeeeeeee.p1ll.domain.DayCell
 import io.github.sammeeeeeeee.p1ll.domain.Phase
 import io.github.sammeeeeeeee.p1ll.domain.SlotStatus
 import io.github.sammeeeeeeee.p1ll.domain.buildCells
+import io.github.sammeeeeeeee.p1ll.domain.buildPastDay
 import io.github.sammeeeeeeee.p1ll.domain.buildToday
 import io.github.sammeeeeeeee.p1ll.domain.indexDoses
 import io.github.sammeeeeeeee.p1ll.domain.isActiveOn
@@ -176,5 +177,26 @@ class ScheduleTest {
         assertEquals(6, doses.size)
         assertTrue(doses.all { it.status == DoseStatus.TAKEN })
         assertEquals(at(monday, 8).toInstant().toEpochMilli(), doses.last().at)
+    }
+
+    @Test
+    fun pastDayShowsWhatWasDueAndWhatWasMissed() {
+        val day = monday - 2
+        val daily = pill(id = 1, times = listOf(8 * 60, 20 * 60))
+        val later = pill(id = 2, start = day + 1)
+        val asNeeded = pill(id = 3, times = emptyList(), schedule = ScheduleType.AS_NEEDED)
+        val index = indexDoses(
+            listOf(
+                dose(day, 8 * 60, pillId = 1, id = 1),
+                Dose(id = 2, pillId = 3, day = day, minute = 600, status = DoseStatus.TAKEN, at = 5),
+            ),
+        )
+        val cards = buildPastDay(listOf(daily, later, asNeeded), index, day, zone)
+        // The pill that hadn't started yet isn't there; the evening dose is still open to fill in.
+        assertEquals(listOf(1L, 3L), cards.map { it.pill.id })
+        assertEquals(Phase.DUE, cards[0].phase)
+        assertEquals(listOf(SlotStatus.TAKEN, SlotStatus.PENDING), cards[0].slots.map { it.status })
+        assertEquals(Phase.AS_NEEDED, cards[1].phase)
+        assertEquals(1, cards[1].takenToday)
     }
 }

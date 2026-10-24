@@ -94,7 +94,7 @@ object Reminders {
         for (f in fired) {
             if (!pending(f.pillId, f.day, f.minute)) continue
             val pill = pills.first { it.id == f.pillId }
-            Notifications.dose(context, pill, f.day, f.minute)
+            Notifications.dose(context, pill, f.day, f.minute, repostedAt = nowMs)
             if (nag > 0 && f.attempt < MAX_NAGS) {
                 follow += f.copy(dueAt = nowMs + nag, attempt = f.attempt + 1, snoozed = false)
             }
