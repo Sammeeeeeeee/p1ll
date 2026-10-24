@@ -16,6 +16,7 @@ import io.github.sammeeeeeeee.p1ll.domain.Slot
 import io.github.sammeeeeeeee.p1ll.domain.SlotStatus
 import io.github.sammeeeeeeee.p1ll.domain.Stats
 import io.github.sammeeeeeeee.p1ll.domain.buildCells
+import io.github.sammeeeeeeee.p1ll.domain.buildPastDay
 import io.github.sammeeeeeeee.p1ll.domain.buildToday
 import io.github.sammeeeeeeee.p1ll.domain.indexDoses
 import io.github.sammeeeeeeee.p1ll.domain.stats
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 
@@ -51,45 +53,60 @@ data class Snapshot(
 
 data class HomeState(
     val now: ZonedDateTime,
+    /** The day on screen: today, or an earlier one being looked back at. */
+    val day: Long,
+    /** How far back there's anything to look at. */
+    val earliest: Long,
     val cards: List<PillToday>,
     val finished: List<Pill>,
     /** Required doses still to take today. Optional pills don't count. */
     val left: Int,
     val required: Int,
+    /** Doses taken on [day]. */
     val takenToday: Int,
     val nextUp: Pair<Pill, ZonedDateTime>?,
     val cells: List<DayCell>,
     val stats: Stats,
+    val hasPills: Boolean,
     val loaded: Boolean,
 ) {
     val today: Long get() = now.toLocalDate().toEpochDay()
-    val due: List<PillToday> get() = cards.filter { it.phase == Phase.DUE }
+    val isToday: Boolean get() = day == today
+    val due: List<PillToday> get() = if (isToday) cards.filter { it.phase == Phase.DUE } else emptyList()
 }
 
 const val CHART_DAYS = 364L
 
-fun buildHome(s: Snapshot): HomeState {
+fun buildHome(s: Snapshot, day: Long = s.today): HomeState {
     val today = s.today
-    val all = buildToday(s.pills, s.index, s.now)
+    val earliest = (s.pills.minOfOrNull { it.startDay } ?: today).coerceIn(today - CHART_DAYS, today)
+    val shown = day.coerceIn(earliest, today)
+    val all = if (shown == today) buildToday(s.pills, s.index, s.now) else buildPastDay(s.pills, s.index, shown, s.now.zone)
     val cards = all.filter { it.phase != Phase.FINISHED }
     val required = cards.filter { !it.pill.optional }.flatMap { it.slots }
     val cells = buildCells(s.pills, s.index, today - CHART_DAYS, today, s.now.zone)
     val nextUp = cards.mapNotNull { c -> c.next?.let { c.pill to it } }.minByOrNull { it.second }
     return HomeState(
         now = s.now,
+        day = shown,
+        earliest = earliest,
         cards = cards,
         finished = all.filter { it.phase == Phase.FINISHED }.map { it.pill },
         left = required.count { it.status == SlotStatus.PENDING },
         required = required.size,
-        takenToday = s.index.values.sumOf { days -> days[today].orEmpty().count { it.status == DoseStatus.TAKEN } },
+        takenToday = s.index.values.sumOf { days -> days[shown].orEmpty().count { it.status == DoseStatus.TAKEN } },
         nextUp = nextUp,
         cells = cells,
         stats = stats(cells, today, s.doses.count { it.status == DoseStatus.TAKEN }),
+        hasPills = s.pills.isNotEmpty(),
         loaded = s.loaded,
     )
 }
 
 data class UndoInfo(val doseId: Long, val label: String, val serial: Long = System.nanoTime())
+
+/** Take tapped on a reminder, waiting for the home screen to play it out. */
+data class ReminderTake(val pillId: Long, val day: Long, val minute: Int, val serial: Long = System.nanoTime())
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val container = (app as P1llApp).container
@@ -105,9 +122,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         Snapshot(pills, doses, indexDoses(doses), now, loaded = true)
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, Snapshot.empty())
 
-    val home: StateFlow<HomeState> = snapshot.map(::buildHome)
+    /** Null follows today, including across midnight. */
+    private val day = MutableStateFlow<Long?>(null)
+
+    val home: StateFlow<HomeState> = combine(snapshot, day) { s, d -> buildHome(s, d ?: s.today) }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, buildHome(Snapshot.empty()))
+
+    /** Takes tapped on reminders, oldest first, so two in quick succession are both recorded. */
+    private val _reminderTakes = MutableStateFlow<List<ReminderTake>>(emptyList())
+    val reminderTakes: StateFlow<List<ReminderTake>> = _reminderTakes.asStateFlow()
 
     private val _undo = MutableStateFlow<UndoInfo?>(null)
     val undo: StateFlow<UndoInfo?> = _undo.asStateFlow()
@@ -132,6 +156,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun tick() {
         clock.value = ZonedDateTime.now()
+    }
+
+    /** Null or today follows today; days before there's anything to show are ignored. */
+    fun showDay(day: Long?) {
+        val state = home.value
+        when {
+            day == null || day >= state.today -> this.day.value = null
+            day >= state.earliest -> this.day.value = day
+        }
+    }
+
+    fun takeFromReminder(pillId: Long, day: Long, minute: Int) {
+        _reminderTakes.update { it + ReminderTake(pillId, day, minute) }
+    }
+
+    fun reminderTakeHandled(take: ReminderTake) {
+        _reminderTakes.update { list -> list.filterNot { it.serial == take.serial } }
     }
 
     fun take(slot: Slot, label: String) = viewModelScope.launch {

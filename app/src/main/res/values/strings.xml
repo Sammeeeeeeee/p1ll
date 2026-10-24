@@ -2,9 +2,12 @@
 <resources>
     <string name="app_name">p1ll</string>
     <string name="channel_doses">Dose reminders</string>
+    <string name="channel_quiet">Snoozed reminders</string>
     <string name="channel_supply">Running low</string>
     <string name="notif_taken">Take</string>
     <string name="notif_snooze">Snooze</string>
+    <string name="notif_due">Due %1$s</string>
+    <string name="notif_dose_due">%1$s, due %2$s</string>
     <string name="notif_low_title">Running low on %1$s</string>
     <string name="notif_low_text">%1$s, %2$s</string>
     <plurals name="left">

@@ -1,5 +1,6 @@
 package io.github.sammeeeeeeee.p1ll
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -12,6 +13,8 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.sammeeeeeeee.p1ll.reminders.ActionReceiver
+import io.github.sammeeeeeeee.p1ll.reminders.Notifications
 import io.github.sammeeeeeeee.p1ll.ui.App
 import io.github.sammeeeeeeee.p1ll.ui.AppViewModel
 import io.github.sammeeeeeeee.p1ll.ui.theme.isDark
@@ -49,10 +52,35 @@ class MainActivity : ComponentActivity() {
             }
             App(vm)
         }
+        if (savedInstanceState == null) handle(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handle(intent)
+    }
+
+    /**
+     * Take on a reminder: the home screen records the dose in view. This activity is exported (it's
+     * the launcher), so only intents carrying the reminder's private token count.
+     */
+    private fun handle(intent: Intent?) {
+        if (intent?.action != ACTION_TAKE || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        setIntent(Intent(this, MainActivity::class.java))
+        if (!Notifications.isOwnTake(this, intent)) return
+        val pillId = intent.getLongExtra(ActionReceiver.EXTRA_PILL, -1)
+        val day = intent.getLongExtra(ActionReceiver.EXTRA_DAY, -1)
+        val minute = intent.getIntExtra(ActionReceiver.EXTRA_MINUTE, -1)
+        if (pillId < 0 || day < 0 || minute < 0) return
+        vm.takeFromReminder(pillId, day, minute)
     }
 
     override fun onResume() {
         super.onResume()
         vm.tick()
+    }
+
+    companion object {
+        const val ACTION_TAKE = "io.github.sammeeeeeeee.p1ll.TAKE_IN_APP"
     }
 }

@@ -82,6 +82,7 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
         onPauseOrDispose { }
     }
     val notificationsOk = remember(resumes) { Notifications.allowed(context) }
+    val health = remember(resumes) { Notifications.health(context) }
     val exactOk = remember(resumes) { Reminders.canExact(context) }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { resumes++ }
 
@@ -99,24 +100,33 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
         }
 
         Spacer(Modifier.height(20.dp))
-        if (!notificationsOk || !exactOk) {
+        if (health != Notifications.Health.OK || !exactOk) {
+            val appSettings = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
             Surface(Modifier.enter(0), color = c.warn.copy(alpha = 0.12f)) {
                 Column(Modifier.padding(18.dp)) {
-                    Text(if (!notificationsOk) "Notifications off" else "Exact alarms off", style = Type.headline)
-                    if (notificationsOk) {
+                    val (title, detail) = when (health) {
+                        Notifications.Health.OFF -> "Notifications off" to null
+                        Notifications.Health.SILENT -> "Reminders are silent" to "They won't sound or pop up."
+                        Notifications.Health.OK -> "Exact alarms off" to "Reminders may be a few minutes late."
+                    }
+                    Text(title, style = Type.headline)
+                    if (detail != null) {
                         Spacer(Modifier.height(4.dp))
-                        Text("Reminders may be a few minutes late.", style = Type.body, color = c.ink2)
+                        Text(detail, style = Type.body, color = c.ink2)
                     }
                     Spacer(Modifier.height(14.dp))
-                    GhostButton("Allow", {
-                        if (!notificationsOk && Build.VERSION.SDK_INT >= 33) {
-                            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else if (!notificationsOk) {
-                            context.startActivity(
-                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                    GhostButton(if (health == Notifications.Health.OFF || health == Notifications.Health.OK) "Allow" else "Open settings", {
+                        when {
+                            health == Notifications.Health.OFF && !notificationsOk && Build.VERSION.SDK_INT >= 33 ->
+                                askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            health == Notifications.Health.SILENT -> context.startActivity(
+                                Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                    .putExtra(Settings.EXTRA_CHANNEL_ID, Notifications.CHANNEL_DOSES),
                             )
-                        } else if (Build.VERSION.SDK_INT >= 31) {
-                            context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
+                            health != Notifications.Health.OK -> context.startActivity(appSettings)
+                            Build.VERSION.SDK_INT >= 31 ->
+                                context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
                         }
                     }, icon = Icons.Bell)
                 }
@@ -165,9 +175,6 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
         Spacer(Modifier.height(12.dp))
         Surface(Modifier.enter(2)) {
             Column(Modifier.padding(14.dp)) {
-                Text("Snooze", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
-                Segmented(listOf(5, 10, 15, 30), prefs.snoozeMinutes, label = { "$it min" }, onSelect = { m -> onChange { it.copy(snoozeMinutes = m) } })
-                Spacer(Modifier.height(18.dp))
                 Text("Remind again", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
                 Segmented(
                     listOf(0, 10, 15, 30),

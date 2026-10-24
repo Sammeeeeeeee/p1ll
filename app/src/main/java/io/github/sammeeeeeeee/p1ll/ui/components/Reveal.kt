@@ -97,3 +97,28 @@ fun Modifier.enter(order: Int = 0): Modifier {
         }
     }
 }
+
+/**
+ * Paging between days: the new day's pieces slide in from the side the day lies on (earlier
+ * days from the left), a beat apart, and settle with a little give.
+ */
+@Composable
+fun Modifier.pageIn(direction: Int, order: Int = 0): Modifier {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(order.coerceAtMost(8) * 32L)
+        progress.animateTo(1f, spring(dampingRatio = 0.74f, stiffness = 320f))
+    }
+    return graphicsLayer {
+        val p = progress.value
+        alpha = p.coerceIn(0f, 1f)
+        translationX = (1f - p) * 56.dp.toPx() * direction
+        val s = 0.97f + 0.03f * p
+        scaleX = s
+        scaleY = s
+        if (Build.VERSION.SDK_INT >= 31) {
+            val r = (1f - p).coerceAtLeast(0f) * 6.dp.toPx()
+            renderEffect = if (r > 0.5f) BlurEffect(r, r) else null
+        }
+    }
+}

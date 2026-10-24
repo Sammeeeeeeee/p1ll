@@ -31,7 +31,7 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 }
 
-/** Taken / Snooze buttons on a reminder. */
+/** Snooze on a reminder. Take now opens the app; this still handles it for reminders posted before that. */
 class ActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val pillId = intent.getLongExtra(EXTRA_PILL, -1)

@@ -1,5 +1,23 @@
 package io.github.sammeeeeeeee.p1ll.ui.home
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.pointerInput
+import io.github.sammeeeeeeee.p1ll.ui.components.LocalReveal
+import io.github.sammeeeeeeee.p1ll.ui.components.TimeDialog
+import io.github.sammeeeeeeee.p1ll.ui.components.pageIn
+import io.github.sammeeeeeeee.p1ll.ui.feedback.LocalFeedback
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -101,9 +119,31 @@ class HomeActions(
     val open: (Pill) -> Unit,
     val add: () -> Unit,
     val settings: () -> Unit,
-    val day: (Long) -> Unit,
+    /** Look at an earlier day; null comes back to today. */
+    val showDay: (Long?) -> Unit,
+    /** Log an as-needed dose on the day shown, at a chosen minute. */
+    val logAt: (PillToday, Int) -> Unit,
     val undo: () -> Unit,
 )
+
+/** Which way the last change of day went, so the new day slides in from the matching side. */
+private class Paging(private var day: Long) {
+    var direction = 0
+        private set
+    private var changedAt = Long.MIN_VALUE
+
+    fun update(next: Long): Int {
+        if (next != day) {
+            direction = if (next < day) -1 else 1
+            day = next
+            changedAt = System.nanoTime()
+        }
+        return direction
+    }
+
+    /** True for pieces composed as part of a change of day, not ones scrolled into view later. */
+    fun justChanged() = changedAt != Long.MIN_VALUE && System.nanoTime() - changedAt < 600_000_000L
+}
 
 @Composable
 fun HomeScreen(
@@ -114,15 +154,58 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val c = P1ll.colors
+    val feedback = LocalFeedback.current
+    val scope = rememberCoroutineScope()
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     var showFinished by remember { mutableStateOf(false) }
+    var logFor by remember { mutableStateOf<PillToday?>(null) }
 
+    val live = state.isToday
+    val day = state.day
+    val paging = remember { Paging(day) }
+    val direction = paging.update(day)
     val rows = remember(state.cards) { doseRows(state.cards) }
     val nowMinute = state.now.hour * 60 + state.now.minute
-    val split = rows.indexOfFirst { it.slot.minute > nowMinute }.let { if (it < 0) rows.size else it }
+    val split = if (!live) rows.size else rows.indexOfFirst { it.slot.minute > nowMinute }.let { if (it < 0) rows.size else it }
     val asNeeded = state.cards.filter { it.phase == Phase.AS_NEEDED }
-    val notToday = state.cards.filter { it.phase == Phase.NOT_TODAY }
+    val notToday = if (live) state.cards.filter { it.phase == Phase.NOT_TODAY } else emptyList()
+    val finished = if (live) state.finished else emptyList()
+
+    fun go(to: Long?) {
+        feedback.tick()
+        actions.showDay(to)
+    }
+    val canGoBack = day > state.earliest
+    val back = { if (canGoBack) go(day - 1) }
+    val forward = { if (!live) go(day + 1) }
+    BackHandler(enabled = !live) { go(null) }
+
+    // The header and count follow a sideways drag a little before the day turns over.
+    val drag = remember { Animatable(0f) }
+    val swipe = Modifier.daySwipe(
+        onDrag = { d ->
+            // With no day that way it stiffens, so the edge is felt rather than shown.
+            val open = if (d > 0) canGoBack else !live
+            scope.launch { drag.snapTo(if (open) d else d * 0.35f) }
+        },
+        onEnd = { total ->
+            when {
+                total > 0 && canGoBack -> back()
+                total < 0 && !live -> forward()
+            }
+            scope.launch { drag.animateTo(0f, spring(0.6f, 380f)) }
+        },
+    )
+
+    // Day-specific pieces slide in from the side when the day changes; otherwise (first open, or
+    // scrolled into view later) they rise in once like everything else. Decided once per piece.
+    val seen = LocalReveal.current
+    @Composable
+    fun Modifier.arrive(key: String, order: Int): Modifier {
+        val sliding = remember(key) { paging.justChanged().also { if (it) seen?.firstTime(key) } }
+        return if (sliding) pageIn(direction, order) else reveal(key, order)
+    }
 
     val list = rememberLazyListState()
     val railPhase = rememberInfiniteTransition(label = "rail").animateFloat(
@@ -136,13 +219,43 @@ fun HomeScreen(
                 state = list,
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = top + 12.dp, bottom = bottom + 128.dp),
             ) {
-                item("header") { Header(state, actions.settings, Modifier.reveal("header", 0).leaving(list, "header")) }
-                item("hero") { Hero(state, Modifier.reveal("hero", 1).leaving(list, "hero").padding(top = 26.dp, bottom = 26.dp)) }
+                item("header") {
+                    Header(
+                        state = state,
+                        canGoBack = canGoBack,
+                        onBack = back,
+                        onForward = forward,
+                        onToday = { go(null) },
+                        onSettings = actions.settings,
+                        titleOffset = { drag.value },
+                        modifier = Modifier.reveal("header", 0).leaving(list, "header").then(swipe),
+                    )
+                }
+                item("hero") {
+                    AnimatedContent(
+                        targetState = state,
+                        contentKey = { it.day },
+                        transitionSpec = { daySlide(targetState.day < initialState.day) },
+                        modifier = Modifier
+                            .reveal("hero", 1)
+                            .leaving(list, "hero")
+                            .then(swipe)
+                            .graphicsLayer { translationX = drag.value }
+                            .padding(top = 26.dp, bottom = 26.dp),
+                        label = "day",
+                    ) { shown -> Hero(shown) }
+                }
                 item("chart") {
                     Surface(Modifier.reveal("chart", 2).leaving(list, "chart", shrink = 0.05f), radius = 28.dp) {
                         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 18.dp)) {
-                            DoseChart(state.cells, c.accent, wave = wave, onDayClick = actions.day)
-                            if (state.cards.isNotEmpty() || state.finished.isNotEmpty()) {
+                            DoseChart(
+                                state.cells,
+                                c.accent,
+                                wave = wave,
+                                selected = day.takeIf { !live },
+                                onDayClick = { if (it != day) go(it) },
+                            )
+                            if (state.hasPills) {
                                 Spacer(Modifier.height(18.dp))
                                 StatsRow(state)
                             }
@@ -150,55 +263,64 @@ fun HomeScreen(
                     }
                 }
                 if (rows.isNotEmpty()) {
-                    item("today") { GroupHeader("Today", Modifier.animateItem().reveal("today", 3)) }
+                    item("group-$day") { GroupHeader(dayName(state), Modifier.animateItem().arrive("group-$day", 3)) }
                     rows.forEachIndexed { i, row ->
-                        if (i == split) {
-                            item("now") { NowRow(state.now, hasAbove = i > 0, hasBelow = true, Modifier.animateItem().reveal("now", 4 + i)) }
+                        if (live && i == split) {
+                            item("now") { NowRow(state.now, hasAbove = i > 0, hasBelow = true, Modifier.animateItem().arrive("now", 4 + i)) }
                         }
-                        item("dose-${row.card.pill.id}-${row.slot.minute}") {
+                        val key = "dose-$day-${row.card.pill.id}-${row.slot.minute}"
+                        item(key) {
                             DoseRowView(
                                 row = row,
                                 now = state.now,
                                 first = i == 0 && split != 0,
-                                last = i == rows.lastIndex && split != rows.size,
+                                last = i == rows.lastIndex && (!live || split != rows.size),
                                 onTake = { actions.take(row.card, it) },
                                 onSkip = { actions.skip(row.card, it) },
                                 onUntake = actions.untake,
                                 onOpen = actions.open,
+                                live = live,
                                 modifier = Modifier
-                                    .animateItem(fadeInSpec = tween(220), placementSpec = spring(0.8f, 380f))
-                                    .reveal("dose-${row.card.pill.id}-${row.slot.minute}", 4 + i + if (i >= split) 1 else 0),
+                                    .animateItem(fadeInSpec = tween(220), placementSpec = spring(0.8f, 380f), fadeOutSpec = tween(120))
+                                    .arrive(key, 4 + i + if (i >= split) 1 else 0),
                             )
                         }
                     }
-                    if (split == rows.size) {
-                        item("now") { NowRow(state.now, hasAbove = true, hasBelow = false, Modifier.animateItem().reveal("now", 4 + rows.size)) }
+                    if (live && split == rows.size) {
+                        item("now") { NowRow(state.now, hasAbove = true, hasBelow = false, Modifier.animateItem().arrive("now", 4 + rows.size)) }
                     }
                 }
                 if (asNeeded.isNotEmpty()) {
-                    item("as-needed") { GroupHeader("As needed", Modifier.animateItem().reveal("as-needed", 9)) }
-                    items(asNeeded, key = { "an-${it.pill.id}" }) { card ->
-                        QuietRow(card, state.now, actions.log, actions.open, Modifier.animateItem().reveal("an-${card.pill.id}", 9))
+                    item("as-needed-$day") { GroupHeader("As needed", Modifier.animateItem().arrive("as-needed-$day", 9)) }
+                    items(asNeeded, key = { "an-$day-${it.pill.id}" }) { card ->
+                        QuietRow(
+                            card,
+                            state.now,
+                            if (live) actions.log else ({ logFor = it }),
+                            actions.open,
+                            Modifier.animateItem(fadeOutSpec = tween(120)).arrive("an-$day-${card.pill.id}", 9),
+                            live = live,
+                        )
                     }
                 }
                 if (notToday.isNotEmpty()) {
-                    item("not-today") { GroupHeader("Not today", Modifier.animateItem().reveal("not-today", 9)) }
+                    item("not-today") { GroupHeader("Not today", Modifier.animateItem().arrive("not-today", 9)) }
                     items(notToday, key = { "nt-${it.pill.id}" }) { card ->
-                        QuietRow(card, state.now, null, actions.open, Modifier.animateItem().reveal("nt-${card.pill.id}", 9))
+                        QuietRow(card, state.now, null, actions.open, Modifier.animateItem().arrive("nt-${card.pill.id}", 9))
                     }
                 }
-                if (state.finished.isNotEmpty()) {
+                if (finished.isNotEmpty()) {
                     item("finished") {
-                        FinishedHeader(state.finished.size, showFinished, Modifier.animateItem().reveal("finished", 9)) { showFinished = !showFinished }
+                        FinishedHeader(finished.size, showFinished, Modifier.animateItem().arrive("finished", 9)) { showFinished = !showFinished }
                     }
                     if (showFinished) {
-                        items(state.finished, key = { "f-${it.id}" }) { pill ->
+                        items(finished, key = { "f-${it.id}" }) { pill ->
                             QuietRow(
                                 PillToday(pill, emptyList(), Phase.FINISHED, null, null, 0, null),
                                 state.now,
                                 null,
                                 actions.open,
-                                Modifier.animateItem().reveal("f-${pill.id}", 9),
+                                Modifier.animateItem().arrive("f-${pill.id}", 9),
                             )
                         }
                     }
@@ -213,12 +335,92 @@ fun HomeScreen(
             Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 20.dp, end = 104.dp, bottom = 28.dp),
         )
     }
+    logFor?.let { card ->
+        TimeDialog(
+            initial = 12 * 60,
+            onDismiss = { logFor = null },
+            onPick = { minute ->
+                actions.logAt(card, minute)
+                logFor = null
+            },
+        )
+    }
+}
+
+/** "Today", "Yesterday", then the weekday; the header carries the date. */
+private fun dayName(state: HomeState): String = when (state.today - state.day) {
+    0L -> "Today"
+    1L -> "Yesterday"
+    else -> Fmt.weekday(state.day)
+}
+
+/** Earlier days arrive from the left, later ones from the right. */
+private fun <S> AnimatedContentTransitionScope<S>.daySlide(back: Boolean): ContentTransform {
+    val d = if (back) -1 else 1
+    return (slideInHorizontally(spring(0.8f, 380f)) { it / 4 * d } + fadeIn(tween(200)))
+        .togetherWith(slideOutHorizontally(tween(180)) { -it / 4 * d } + fadeOut(tween(140)))
+        .using(SizeTransform(clip = false))
+}
+
+/** A sideways drag: [onDrag] gets the damped offset to follow, [onEnd] the full distance once it's past the threshold (else 0). */
+@Composable
+private fun Modifier.daySwipe(onDrag: (Float) -> Unit, onEnd: (Float) -> Unit): Modifier {
+    val drag by rememberUpdatedState(onDrag)
+    val end by rememberUpdatedState(onEnd)
+    return pointerInput(Unit) {
+        var total = 0f
+        val threshold = 56.dp.toPx()
+        detectHorizontalDragGestures(
+            onDragStart = { total = 0f },
+            onDragEnd = { end(if (abs(total) > threshold) total else 0f) },
+            onDragCancel = { end(0f) },
+        ) { change, dx ->
+            total += dx
+            change.consume()
+            drag(total * 0.3f)
+        }
+    }
 }
 
 @Composable
-private fun Header(state: HomeState, onSettings: () -> Unit, modifier: Modifier = Modifier) {
+private fun Header(
+    state: HomeState,
+    canGoBack: Boolean,
+    onBack: () -> Unit,
+    onForward: () -> Unit,
+    onToday: () -> Unit,
+    onSettings: () -> Unit,
+    titleOffset: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val backAlpha by animateFloatAsState(if (canGoBack) 1f else 0.35f, tween(200), label = "back")
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(Fmt.dayMonth(state.today), style = Type.title, modifier = Modifier.weight(1f))
+        AnimatedContent(
+            targetState = state.day,
+            transitionSpec = { daySlide(targetState < initialState) },
+            modifier = Modifier.weight(1f).graphicsLayer { translationX = titleOffset() },
+            label = "date",
+        ) { day ->
+            // Tapping an earlier day's date comes back to today.
+            Text(
+                Fmt.dayMonth(day),
+                style = Type.title,
+                maxLines = 1,
+                modifier = Modifier.tappable(enabled = day != state.today, pressedScale = 0.96f, onClick = onToday),
+            )
+        }
+        CircleButton(Icons.Back, "Previous day", onBack, Modifier.graphicsLayer { alpha = backAlpha })
+        AnimatedVisibility(
+            visible = !state.isToday,
+            enter = expandHorizontally(spring(0.8f, 420f)) + scaleIn(spring(0.5f, 500f), 0.4f) + fadeIn(tween(160)),
+            exit = shrinkHorizontally(tween(200)) + scaleOut(tween(160), 0.4f) + fadeOut(tween(120)),
+        ) {
+            Row {
+                Spacer(Modifier.width(8.dp))
+                CircleButton(Icons.ChevronRight, "Next day", onForward)
+            }
+        }
+        Spacer(Modifier.width(8.dp))
         CircleButton(Icons.Sliders, "Settings", onSettings)
     }
 }
@@ -259,17 +461,19 @@ private fun Hero(state: HomeState, modifier: Modifier = Modifier) {
             label = "hero",
         ) { m ->
             when (m) {
-                HeroMode.COUNT -> RollingNumber(state.left, Type.hero, color = c.accent)
+                HeroMode.COUNT -> RollingNumber(state.left, Type.hero, color = if (state.isToday) c.accent else c.ink2)
                 HeroMode.DONE -> DoneMark(Modifier.size(92.dp))
                 HeroMode.NONE -> Text("0", style = Type.hero, color = c.ink3)
             }
         }
         Spacer(Modifier.width(18.dp))
         Column(Modifier.weight(1f)) {
-            val headline = when (mode) {
-                HeroMode.COUNT -> if (state.left == 1) "dose left" else "doses left"
-                HeroMode.DONE -> "All done"
-                HeroMode.NONE -> if (state.cards.isEmpty()) "No pills" else "Nothing due"
+            val headline = when {
+                mode == HeroMode.COUNT && !state.isToday -> "missed"
+                mode == HeroMode.COUNT -> if (state.left == 1) "dose left" else "doses left"
+                mode == HeroMode.DONE -> "All done"
+                !state.isToday -> "Nothing scheduled"
+                else -> if (state.cards.isEmpty()) "No pills" else "Nothing due"
             }
             AnimatedContent(headline, transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(120)) }, label = "h") {
                 Text(it, style = Type.headline)
