@@ -82,9 +82,12 @@ class ReminderFlowTest {
         app.registerReceiver(ActionReceiver(), IntentFilter(snoozeIntent.action).apply { addDataScheme("p1ll") }, Context.RECEIVER_NOT_EXPORTED)
         app.sendBroadcast(Intent(snoozeIntent).setComponent(null))
 
-        // Snooze keeps the one notification but moves it under Silent, dismissible, with only Take left.
+        // Snooze swaps the reminder for a silent copy under Silent, dismissible, with only Take left.
+        // It's a new notification (its own tag) rather than an update, because Android won't move an
+        // existing one between sections while the shade is open.
         waitFor("the reminder to go silent") { notifications.allNotifications.singleOrNull()?.channelId == Notifications.CHANNEL_QUIET }
         val quiet = notifications.allNotifications.single()
+        assertEquals("snoozed", notifications.activeNotifications.single().tag)
         assertTrue(quiet.flags and Notification.FLAG_ONGOING_EVENT == 0)
         assertEquals(listOf(app.getString(R.string.notif_taken)), quiet.actions.map { it.title.toString() })
 
@@ -93,5 +96,9 @@ class ReminderFlowTest {
         waitFor("the alarm to be re-armed") { alarms.peekNextScheduledAlarm()?.triggerAtMs == tomorrow }
         Reminders.sync(app, now.plusHours(1))
         assertEquals(Notifications.CHANNEL_QUIET, notifications.allNotifications.single().channelId)
+
+        // Taking the dose clears the snoozed copy too.
+        Notifications.cancel(app, pillId, minute)
+        assertTrue(notifications.allNotifications.isEmpty())
     }
 }
