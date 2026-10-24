@@ -175,9 +175,6 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
         Spacer(Modifier.height(12.dp))
         Surface(Modifier.enter(2)) {
             Column(Modifier.padding(14.dp)) {
-                Text("Snooze", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
-                Segmented(listOf(5, 10, 15, 30), prefs.snoozeMinutes, label = { "$it min" }, onSelect = { m -> onChange { it.copy(snoozeMinutes = m) } })
-                Spacer(Modifier.height(18.dp))
                 Text("Remind again", style = Type.label, color = c.ink2, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
                 Segmented(
                     listOf(0, 10, 15, 30),

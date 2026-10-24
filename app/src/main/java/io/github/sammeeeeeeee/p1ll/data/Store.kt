@@ -95,8 +95,13 @@ class Store(private val context: Context, val db: P1llDb, val settings: Settings
         return id
     }
 
+    /** Turns the reminder silent, or just clears it if the dose has been dealt with meanwhile. */
     suspend fun snooze(pillId: Long, day: Long, minute: Int) {
-        Reminders.snooze(context, pillId, day, minute, settings.current().snoozeMinutes)
+        if (resolve(pillId, day, minute)?.status != SlotStatus.PENDING) {
+            Notifications.cancel(context, pillId, minute)
+            return
+        }
+        Reminders.snooze(context, pillId, day, minute)
     }
 
     suspend fun updateSettings(transform: (Prefs) -> Prefs) {

@@ -16,8 +16,7 @@ data class Prefs(
     val theme: ThemeMode = ThemeMode.SYSTEM,
     /** Index into [io.github.sammeeeeeeee.p1ll.ui.theme.Accents]. */
     val accent: Int = 0,
-    val snoozeMinutes: Int = 10,
-    /** Re-remind every N minutes until the dose is handled; 0 = off. */
+    /** Re-remind every N minutes until the dose is taken or snoozed; 0 = off. */
     val nagMinutes: Int = 0,
     val sounds: Boolean = true,
     val haptics: Boolean = true,
@@ -29,7 +28,6 @@ class SettingsStore(private val context: Context) {
     private object Keys {
         val theme = intPreferencesKey("theme")
         val accent = intPreferencesKey("accent")
-        val snooze = intPreferencesKey("snooze")
         val nag = intPreferencesKey("nag")
         val sounds = booleanPreferencesKey("sounds")
         val haptics = booleanPreferencesKey("haptics")
@@ -44,7 +42,6 @@ class SettingsStore(private val context: Context) {
             val next = transform(p.toPrefs())
             p[Keys.theme] = next.theme.ordinal
             p[Keys.accent] = next.accent
-            p[Keys.snooze] = next.snoozeMinutes
             p[Keys.nag] = next.nagMinutes
             p[Keys.sounds] = next.sounds
             p[Keys.haptics] = next.haptics
@@ -56,7 +53,6 @@ class SettingsStore(private val context: Context) {
         return Prefs(
             theme = ThemeMode.entries.getOrElse(this[Keys.theme] ?: 0) { d.theme },
             accent = this[Keys.accent] ?: d.accent,
-            snoozeMinutes = this[Keys.snooze] ?: d.snoozeMinutes,
             nagMinutes = this[Keys.nag] ?: d.nagMinutes,
             sounds = this[Keys.sounds] ?: d.sounds,
             haptics = this[Keys.haptics] ?: d.haptics,

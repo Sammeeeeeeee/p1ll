@@ -11,7 +11,8 @@ Pill tracker for Android. A year chart shows one square per day, split into one 
 ## Features
 
 - Schedules for every day, chosen weekdays, every N days, or as needed
-- Notifications with Take (opens the app and ticks the dose off) and Snooze, and optional repeats
+- One reminder per dose that stays until you act on it: Take opens the app and ticks the dose off, Snooze turns it into a silent notification that won't alert again
+- Optional repeats until a dose is taken or snoozed
 - End dates, with history kept
 - Optional pills, never counted as missed
 - Supply count with a refill warning

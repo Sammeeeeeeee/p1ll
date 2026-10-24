@@ -16,7 +16,6 @@ import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,7 +24,6 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
@@ -48,7 +46,7 @@ class ReminderFlowTest {
     }
 
     @Test
-    fun snoozeClearsTheReminderAndBringsItBack() = runBlocking {
+    fun snoozeTurnsTheReminderSilent() = runBlocking {
         shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         val now = ZonedDateTime.now(zone)
         val today = now.toLocalDate().toEpochDay()
@@ -65,6 +63,9 @@ class ReminderFlowTest {
         assertEquals(1, notifications.allNotifications.size)
         val posted = notifications.allNotifications.single()
         assertEquals("50 mg, due ${Fmt.time(app, minute)}", posted.extras.getString(Notification.EXTRA_TEXT))
+        // It alerts, and stays (Clear all leaves it) until the dose is taken or snoozed.
+        assertEquals(Notifications.CHANNEL_DOSES, posted.channelId)
+        assertTrue(posted.flags and Notification.FLAG_ONGOING_EVENT != 0)
 
         // Take opens the app (which records the dose in view) instead of acting in the background.
         val take = shadowOf(posted.actions.first { it.title == app.getString(R.string.notif_taken) }.actionIntent)
@@ -80,22 +81,17 @@ class ReminderFlowTest {
         val snoozeIntent = shadowOf(posted.actions.first { it.title == app.getString(R.string.notif_snooze) }.actionIntent).savedIntent
         app.registerReceiver(ActionReceiver(), IntentFilter(snoozeIntent.action).apply { addDataScheme("p1ll") }, Context.RECEIVER_NOT_EXPORTED)
         app.sendBroadcast(Intent(snoozeIntent).setComponent(null))
-        waitFor("the reminder to clear") { notifications.allNotifications.isEmpty() }
 
-        // The receiver clears the reminder first and re-arms afterwards, so wait for the snooze alarm
-        // itself rather than reading whatever was armed before (tomorrow's dose).
-        val snooze = app.container.settings.current().snoozeMinutes * 60_000L
-        fun snoozeAlarm() = alarms.peekNextScheduledAlarm()?.takeIf {
-            kotlin.math.abs(it.triggerAtMs - System.currentTimeMillis() - snooze) < 60_000
-        }
-        waitFor("the snooze alarm") { snoozeAlarm() != null }
-        val alarm = snoozeAlarm()
-        assertNotNull(alarm)
+        // Snooze keeps the one notification but moves it under Silent, dismissible, with only Take left.
+        waitFor("the reminder to go silent") { notifications.allNotifications.singleOrNull()?.channelId == Notifications.CHANNEL_QUIET }
+        val quiet = notifications.allNotifications.single()
+        assertTrue(quiet.flags and Notification.FLAG_ONGOING_EVENT == 0)
+        assertEquals(listOf(app.getString(R.string.notif_taken)), quiet.actions.map { it.title.toString() })
 
-        // The snoozed reminder comes back as a fresh post stamped with when it returned.
-        val back = Instant.ofEpochMilli(alarm!!.triggerAtMs + 1_000)
-        Reminders.sync(app, back.atZone(zone))
-        assertEquals(1, notifications.allNotifications.size)
-        assertTrue(notifications.allNotifications.single().`when` >= alarm.triggerAtMs - 5_000)
+        // Nothing comes back for it: the next alarm is tomorrow's dose, and an hour on it's still just the one quiet notification.
+        val tomorrow = slot.plusDays(1).toInstant().toEpochMilli()
+        waitFor("the alarm to be re-armed") { alarms.peekNextScheduledAlarm()?.triggerAtMs == tomorrow }
+        Reminders.sync(app, now.plusHours(1))
+        assertEquals(Notifications.CHANNEL_QUIET, notifications.allNotifications.single().channelId)
     }
 }

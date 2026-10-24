@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">p1ll</string>
     <string name="channel_doses">Dose reminders</string>
+    <string name="channel_quiet">Snoozed reminders</string>
     <string name="channel_supply">Running low</string>
     <string name="notif_taken">Take</string>
     <string name="notif_snooze">Snooze</string>
