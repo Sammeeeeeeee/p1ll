@@ -60,15 +60,18 @@ class MainActivity : ComponentActivity() {
         handle(intent)
     }
 
-    /** Take on a reminder: clear it straight away, then let the home screen record the dose in view. */
+    /**
+     * Take on a reminder: the home screen records the dose in view. This activity is exported (it's
+     * the launcher), so only intents carrying the reminder's private token count.
+     */
     private fun handle(intent: Intent?) {
         if (intent?.action != ACTION_TAKE || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        setIntent(Intent(this, MainActivity::class.java))
+        if (!Notifications.isOwnTake(this, intent)) return
         val pillId = intent.getLongExtra(ActionReceiver.EXTRA_PILL, -1)
         val day = intent.getLongExtra(ActionReceiver.EXTRA_DAY, -1)
         val minute = intent.getIntExtra(ActionReceiver.EXTRA_MINUTE, -1)
-        setIntent(Intent(this, MainActivity::class.java))
-        if (pillId < 0 || minute < 0) return
-        Notifications.cancel(this, pillId, minute)
+        if (pillId < 0 || day < 0 || minute < 0) return
         vm.takeFromReminder(pillId, day, minute)
     }
 

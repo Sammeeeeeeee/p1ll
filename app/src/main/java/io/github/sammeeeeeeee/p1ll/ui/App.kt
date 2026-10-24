@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.sammeeeeeeee.p1ll.data.Pill
@@ -67,21 +68,30 @@ fun App(vm: AppViewModel) {
     }
 
     // Take on a reminder: come home to the dose's day, let the screen settle, then take it in view.
-    val reminderTake by vm.reminderTake.collectAsStateWithLifecycle()
-    LaunchedEffect(reminderTake) {
-        val request = reminderTake ?: return@LaunchedEffect
+    // Requests queue, so a second Take tapped meanwhile waits its turn; the reminder itself stays
+    // up until the dose is stored, which is what clears it.
+    val reminderTakes by vm.reminderTakes.collectAsStateWithLifecycle()
+    val request = reminderTakes.firstOrNull()
+    LaunchedEffect(request) {
+        if (request == null) return@LaunchedEffect
+        // Don't throw away a half-edited pill: wait until the editor has been closed.
+        snapshotFlow { navigator.stack.none { it is Screen.Editor } }.first { it }
         openDay = null
+        val settled = navigator.current == Screen.Home && vm.home.value.day == request.day
         navigator.popTo(Screen.Home)
+        // After a cold start the data has to load before the day can be checked and shown.
+        vm.home.first { it.loaded }
         vm.showDay(request.day)
-        val loaded = vm.snapshot.first { it.loaded }
-        delay(if (reveal.opening) 1100 else 550)
-        val latest = vm.snapshot.value.takeIf { it.loaded } ?: loaded
+        delay(if (reveal.opening) 1100 else if (settled) 250 else 550)
+        val latest = vm.snapshot.value
         val pill = latest.pills.find { it.id == request.pillId }
         val slot = pill?.let { p ->
             p.plan(request.day, latest.now.zone, latest.index).firstOrNull { it.minute == request.minute }
                 ?: Slot(p.id, request.day, request.minute, SlotStatus.PENDING)
         }
         if (pill != null && slot != null && slot.status == SlotStatus.PENDING) take(pill, slot)
+        // Already handled (or the pill is gone): taking stores nothing, so clear the reminder here.
+        else Notifications.cancel(context, request.pillId, request.minute)
         vm.reminderTakeHandled(request)
     }
 

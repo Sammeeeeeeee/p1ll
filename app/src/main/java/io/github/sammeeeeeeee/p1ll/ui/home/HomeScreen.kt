@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.input.pointer.pointerInput
+import io.github.sammeeeeeeee.p1ll.ui.components.LocalReveal
 import io.github.sammeeeeeeee.p1ll.ui.components.TimeDialog
 import io.github.sammeeeeeeee.p1ll.ui.components.pageIn
 import io.github.sammeeeeeeee.p1ll.ui.feedback.LocalFeedback
@@ -129,17 +130,19 @@ class HomeActions(
 private class Paging(private var day: Long) {
     var direction = 0
         private set
-    var paged = false
-        private set
+    private var changedAt = Long.MIN_VALUE
 
     fun update(next: Long): Int {
         if (next != day) {
             direction = if (next < day) -1 else 1
             day = next
-            paged = true
+            changedAt = System.nanoTime()
         }
         return direction
     }
+
+    /** True for pieces composed as part of a change of day, not ones scrolled into view later. */
+    fun justChanged() = changedAt != Long.MIN_VALUE && System.nanoTime() - changedAt < 600_000_000L
 }
 
 @Composable
@@ -195,9 +198,14 @@ fun HomeScreen(
         },
     )
 
-    // Day-specific pieces make their first entrance once, then slide in from the side as days change.
+    // Day-specific pieces slide in from the side when the day changes; otherwise (first open, or
+    // scrolled into view later) they rise in once like everything else. Decided once per piece.
+    val seen = LocalReveal.current
     @Composable
-    fun Modifier.arrive(key: String, order: Int): Modifier = if (paging.paged) pageIn(direction, order) else reveal(key, order)
+    fun Modifier.arrive(key: String, order: Int): Modifier {
+        val sliding = remember(key) { paging.justChanged().also { if (it) seen?.firstTime(key) } }
+        return if (sliding) pageIn(direction, order) else reveal(key, order)
+    }
 
     val list = rememberLazyListState()
     val railPhase = rememberInfiniteTransition(label = "rail").animateFloat(

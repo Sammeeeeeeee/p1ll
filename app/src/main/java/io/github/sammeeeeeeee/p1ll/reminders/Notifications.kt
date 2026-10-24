@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import io.github.sammeeeeeeee.p1ll.MainActivity
 import io.github.sammeeeeeeee.p1ll.R
 import io.github.sammeeeeeeee.p1ll.data.Pill
@@ -31,6 +32,7 @@ import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import io.github.sammeeeeeeee.p1ll.ui.components.drawGlyphBadge
 import io.github.sammeeeeeeee.p1ll.ui.theme.pillColor
 import java.time.ZoneId
+import java.util.UUID
 
 object Notifications {
     const val CHANNEL_DOSES = "doses"
@@ -93,6 +95,7 @@ object Notifications {
             Intent(context, MainActivity::class.java)
                 .setAction(MainActivity.ACTION_TAKE)
                 .dose()
+                .putExtra(EXTRA_TOKEN, token(context))
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
@@ -123,6 +126,19 @@ object Notifications {
         @Suppress("MissingPermission")
         manager.notify(id, notification)
     }
+
+    private const val EXTRA_TOKEN = "token"
+
+    /** A random value only this install knows, so another app can't send MainActivity a Take. */
+    private fun token(context: Context): String {
+        val prefs = context.getSharedPreferences("reminders", Context.MODE_PRIVATE)
+        return prefs.getString("takeToken", null) ?: UUID.randomUUID().toString().also {
+            prefs.edit { putString("takeToken", it) }
+        }
+    }
+
+    fun isOwnTake(context: Context, intent: Intent): Boolean =
+        intent.getStringExtra(EXTRA_TOKEN)?.let { it == token(context) } == true
 
     enum class Health { OK, OFF, SILENT }
 

@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 
@@ -128,8 +129,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, buildHome(Snapshot.empty()))
 
-    private val _reminderTake = MutableStateFlow<ReminderTake?>(null)
-    val reminderTake: StateFlow<ReminderTake?> = _reminderTake.asStateFlow()
+    /** Takes tapped on reminders, oldest first, so two in quick succession are both recorded. */
+    private val _reminderTakes = MutableStateFlow<List<ReminderTake>>(emptyList())
+    val reminderTakes: StateFlow<List<ReminderTake>> = _reminderTakes.asStateFlow()
 
     private val _undo = MutableStateFlow<UndoInfo?>(null)
     val undo: StateFlow<UndoInfo?> = _undo.asStateFlow()
@@ -156,16 +158,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         clock.value = ZonedDateTime.now()
     }
 
+    /** Null or today follows today; days before there's anything to show are ignored. */
     fun showDay(day: Long?) {
-        this.day.value = day?.takeIf { it < snapshot.value.today }
+        val state = home.value
+        when {
+            day == null || day >= state.today -> this.day.value = null
+            day >= state.earliest -> this.day.value = day
+        }
     }
 
     fun takeFromReminder(pillId: Long, day: Long, minute: Int) {
-        _reminderTake.value = ReminderTake(pillId, day, minute)
+        _reminderTakes.update { it + ReminderTake(pillId, day, minute) }
     }
 
     fun reminderTakeHandled(take: ReminderTake) {
-        _reminderTake.compareAndSet(take, null)
+        _reminderTakes.update { list -> list.filterNot { it.serial == take.serial } }
     }
 
     fun take(slot: Slot, label: String) = viewModelScope.launch {
