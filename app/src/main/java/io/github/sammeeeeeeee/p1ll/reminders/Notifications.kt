@@ -73,14 +73,18 @@ object Notifications {
 
     fun id(pillId: Long, minute: Int): Int = ((pillId % 1_000_000) * 1440 + minute).toInt()
 
+    /** A snoozed reminder is posted under this tag, as its own notification (see [dose]). */
+    private const val TAG_SNOOZED = "snoozed"
+
     fun cancel(context: Context, pillId: Long, minute: Int) {
-        NotificationManagerCompat.from(context).cancel(id(pillId, minute))
+        val manager = NotificationManagerCompat.from(context)
+        manager.cancel(id(pillId, minute))
+        manager.cancel(TAG_SNOOZED, id(pillId, minute))
     }
 
     /**
      * One reminder per dose. It alerts once and stays (out of reach of Clear all) until the dose is
-     * taken or snoozed. [quiet] is the snoozed form: the same notification moved under Silent, with
-     * only Take left. [repostedAt] marks a "remind again" repeat: any copy still showing is replaced
+     * taken or snoozed. [quiet] is the snoozed form: a silent copy under Silent, with only Take left. [repostedAt] marks a "remind again" repeat: any copy still showing is replaced
      * by a fresh post stamped at that time, so Android treats it as a new alert, not a quiet update.
      */
     fun dose(context: Context, pill: Pill, day: Long, minute: Int, repostedAt: Long? = null, quiet: Boolean = false) {
@@ -133,9 +137,20 @@ object Notifications {
         }
         val notification = builder.build()
         val manager = NotificationManagerCompat.from(context)
-        if (repostedAt != null) manager.cancel(id)
-        @Suppress("MissingPermission")
-        manager.notify(id, notification)
+        if (quiet) {
+            // Android won't move a notification to another section while the shade is open, so an
+            // update would sit among the alerts until it closed. A new notification lands under
+            // Silent straight away, so the snoozed copy replaces the reminder instead of updating it.
+            manager.cancel(id)
+            @Suppress("MissingPermission")
+            manager.notify(TAG_SNOOZED, id, notification)
+        } else {
+            // One notification per dose: a new reminder replaces an older snoozed one at the same time.
+            manager.cancel(TAG_SNOOZED, id)
+            if (repostedAt != null) manager.cancel(id)
+            @Suppress("MissingPermission")
+            manager.notify(id, notification)
+        }
     }
 
     private const val EXTRA_TOKEN = "token"
