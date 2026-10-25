@@ -36,7 +36,11 @@ import java.util.UUID
 
 object Notifications {
     const val CHANNEL_DOSES = "doses"
-    /** Where a snoozed reminder moves: still in the shade, under Silent, never alerting again. */
+    /**
+     * Where a snoozed reminder moves: minimized, never alerting again. Stock Android files it under
+     * Silent, collapsed. Samsung's One UI has no Silent section (one list, sorted by time) but
+     * collapses minimized notifications and can gather them at the bottom (Filter notifications).
+     */
     const val CHANNEL_QUIET = "doses_quiet"
     const val CHANNEL_SUPPLY = "supply"
 
@@ -58,10 +62,12 @@ object Notifications {
             enableVibration(true)
             vibrationPattern = longArrayOf(0, 40, 90, 60)
         }
+        // Created at LOW in 1.1.x; Android lowers an existing channel to MIN here unless the user
+        // has changed its settings.
         val quiet = NotificationChannel(
             CHANNEL_QUIET,
             context.getString(R.string.channel_quiet),
-            NotificationManager.IMPORTANCE_LOW,
+            NotificationManager.IMPORTANCE_MIN,
         )
         val supply = NotificationChannel(
             CHANNEL_SUPPLY,
@@ -84,7 +90,7 @@ object Notifications {
 
     /**
      * One reminder per dose. It alerts once and stays (out of reach of Clear all) until the dose is
-     * taken or snoozed. [quiet] is the snoozed form: a silent copy under Silent, with only Take left. [repostedAt] marks a "remind again" repeat: any copy still showing is replaced
+     * taken or snoozed. [quiet] is the snoozed form: a minimized silent copy, with only Take left. [repostedAt] marks a "remind again" repeat: any copy still showing is replaced
      * by a fresh post stamped at that time, so Android treats it as a new alert, not a quiet update.
      */
     fun dose(context: Context, pill: Pill, day: Long, minute: Int, repostedAt: Long? = null, quiet: Boolean = false) {
@@ -119,7 +125,7 @@ object Notifications {
             .setContentText(text)
             .setColor(pillColor(pill.color, dark = false).toArgb())
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setPriority(if (quiet) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_HIGH)
+            .setPriority(if (quiet) NotificationCompat.PRIORITY_MIN else NotificationCompat.PRIORITY_HIGH)
             .setWhen(repostedAt ?: slotTime(day, minute, ZoneId.systemDefault()).toInstant().toEpochMilli())
             .setShowWhen(true)
             .setOngoing(!quiet)
@@ -139,8 +145,8 @@ object Notifications {
         val manager = NotificationManagerCompat.from(context)
         if (quiet) {
             // Android won't move a notification to another section while the shade is open, so an
-            // update would sit among the alerts until it closed. A new notification lands under
-            // Silent straight away, so the snoozed copy replaces the reminder instead of updating it.
+            // update would sit among the alerts until it closed. A new notification is placed by its
+            // own importance straight away, so the snoozed copy replaces the reminder instead.
             manager.cancel(id)
             @Suppress("MissingPermission")
             manager.notify(TAG_SNOOZED, id, notification)
