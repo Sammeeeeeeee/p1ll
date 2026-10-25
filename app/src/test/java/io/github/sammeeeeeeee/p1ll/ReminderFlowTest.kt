@@ -88,6 +88,9 @@ class ReminderFlowTest {
         waitFor("the reminder to go silent") { notifications.allNotifications.singleOrNull()?.channelId == Notifications.CHANNEL_QUIET }
         val quiet = notifications.allNotifications.single()
         assertEquals("snoozed", notifications.activeNotifications.single().tag)
+        // Minimized: Silent and collapsed on stock Android, collapsed and filterable on One UI.
+        val manager = app.getSystemService(NotificationManager::class.java)
+        assertEquals(NotificationManager.IMPORTANCE_MIN, manager.getNotificationChannel(Notifications.CHANNEL_QUIET).importance)
         assertTrue(quiet.flags and Notification.FLAG_ONGOING_EVENT == 0)
         assertEquals(listOf(app.getString(R.string.notif_taken)), quiet.actions.map { it.title.toString() })
 
