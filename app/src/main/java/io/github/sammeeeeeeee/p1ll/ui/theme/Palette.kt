@@ -13,7 +13,7 @@ data class Tone(val light: Color, val dark: Color) {
 @Immutable
 data class Accent(val name: String, val tone: Tone)
 
-/** Pill colours, tuned in pairs so each reads well on both backgrounds. */
+/** Pill colours, tuned in pairs so each reads well on both backgrounds. Pills store the index, so new ones go on the end. */
 val PillColors = listOf(
     Tone(Color(0xFFD9663A), Color(0xFFF08A63)), // terracotta
     Tone(Color(0xFFD29A26), Color(0xFFEAB850)), // ochre
@@ -23,7 +23,14 @@ val PillColors = listOf(
     Tone(Color(0xFF8656C9), Color(0xFFAC8BEA)), // violet
     Tone(Color(0xFFC8507A), Color(0xFFEA7EA3)), // rose
     Tone(Color(0xFF6B6F78), Color(0xFF9EA2AB)), // graphite
+    Tone(Color(0xFFC83C3C), Color(0xFFEC5A5A)), // red
+    Tone(Color(0xFF6C9A24), Color(0xFF9CCB55)), // lime
+    Tone(Color(0xFF2A86C8), Color(0xFF63B4EC)), // sky
+    Tone(Color(0xFF8C5E3C), Color(0xFFC89670)), // cocoa
 )
+
+/** [PillColors] indices in picker order, round the colour wheel. */
+val PillColorOrder = listOf(8, 0, 11, 1, 9, 2, 3, 10, 4, 5, 6, 7)
 
 fun pillColor(index: Int, dark: Boolean): Color = PillColors[index.mod(PillColors.size)].pick(dark)
 

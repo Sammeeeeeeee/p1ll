@@ -50,5 +50,8 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "p1ll-${VERSION_NAME}.apk" --clobber
           else
-            gh release create "$TAG" "p1ll-${VERSION_NAME}.apk" --title "p1ll ${VERSION_NAME}" --generate-notes --target "$GITHUB_SHA"
+            # A tag with a suffix (v1.2.0-beta.1) is a pre-release, so it never becomes Latest.
+            pre=""
+            if [[ "$TAG" == *-* ]]; then pre="--prerelease"; fi
+            gh release create "$TAG" "p1ll-${VERSION_NAME}.apk" --title "p1ll ${VERSION_NAME}" --generate-notes --target "$GITHUB_SHA" $pre
           fi

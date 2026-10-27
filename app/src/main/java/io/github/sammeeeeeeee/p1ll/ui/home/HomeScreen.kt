@@ -70,6 +70,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,6 +118,8 @@ class HomeActions(
     val untake: (Slot) -> Unit,
     val log: (PillToday) -> Unit,
     val open: (Pill) -> Unit,
+    /** An earlier day's sheet, where every dose that day can be changed. */
+    val editDay: (Long) -> Unit,
     val add: () -> Unit,
     val settings: () -> Unit,
     /** Look at an earlier day; null comes back to today. */
@@ -158,7 +161,7 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    var showFinished by remember { mutableStateOf(false) }
+    var showFinished by rememberSaveable { mutableStateOf(false) }
     var logFor by remember { mutableStateOf<PillToday?>(null) }
 
     val live = state.isToday
@@ -176,6 +179,8 @@ fun HomeScreen(
         feedback.tick()
         actions.showDay(to)
     }
+    // On an earlier day a row opens that day for editing rather than the pill.
+    val open: (Pill) -> Unit = if (live) actions.open else ({ actions.editDay(day) })
     val canGoBack = day > state.earliest
     val back = { if (canGoBack) go(day - 1) }
     val forward = { if (!live) go(day + 1) }
@@ -278,7 +283,7 @@ fun HomeScreen(
                                 onTake = { actions.take(row.card, it) },
                                 onSkip = { actions.skip(row.card, it) },
                                 onUntake = actions.untake,
-                                onOpen = actions.open,
+                                onOpen = open,
                                 live = live,
                                 modifier = Modifier
                                     .animateItem(fadeInSpec = tween(220), placementSpec = spring(0.8f, 380f), fadeOutSpec = tween(120))
@@ -297,7 +302,7 @@ fun HomeScreen(
                             card,
                             state.now,
                             if (live) actions.log else ({ logFor = it }),
-                            actions.open,
+                            open,
                             Modifier.animateItem(fadeOutSpec = tween(120)).arrive("an-$day-${card.pill.id}", 9),
                             live = live,
                         )

@@ -122,6 +122,7 @@ fun App(vm: AppViewModel) {
                                 vm.logAsNeeded(card.pill, "${card.pill.name} logged")
                             },
                             open = { nav.push(Screen.Detail(it.id)) },
+                            editDay = { openDay = OpenDay(it, null) },
                             add = { nav.push(Screen.Editor(null, fromFab = true)) },
                             settings = { nav.push(Screen.Settings) },
                             showDay = vm::showDay,

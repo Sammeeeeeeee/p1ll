@@ -8,7 +8,8 @@ import androidx.room.TypeConverter
 
 enum class ScheduleType { DAILY, WEEKDAYS, INTERVAL, AS_NEEDED }
 
-enum class PillShape { ROUND, CAPSULE, OVAL, TABLET, DROP }
+/** What the medicine looks like: pills first, then other forms. Stored by name. */
+enum class PillShape { ROUND, CAPSULE, OVAL, TABLET, DROP, SACHET, TUBE, BOTTLE, SPRAY, INHALER, SYRINGE, PATCH }
 
 enum class DoseStatus { TAKEN, SKIPPED }
 
