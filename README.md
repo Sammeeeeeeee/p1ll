@@ -40,7 +40,7 @@ Push a tag and CI attaches a signed APK to its GitHub release:
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-`v1.2.3` builds version name `1.2.3`, version code `10203`.
+`v1.2.3` builds version name `1.2.3`, version code `10203`. A suffixed tag such as `v1.2.3-beta.1` keeps that code and is published as a pre-release. CI's own APKs are version `0.1.0`, so they won't install over a release.
 
 The release keystore and its passwords are committed in `keystore/`, so CI signs without secrets. Anyone with this repo can sign an APK that installs as an update to p1ll. Moving the key to GitHub Secrets means rotating it, after which existing installs must uninstall before updating.
 
