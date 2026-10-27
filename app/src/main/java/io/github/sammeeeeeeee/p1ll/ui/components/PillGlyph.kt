@@ -25,6 +25,8 @@ fun DrawScope.drawPillGlyph(shape: PillShape, color: Color) {
     val c = center
     val shade = lerp(color, Color.Black, 0.22f).copy(alpha = 0.55f)
     val glint = Color.White.copy(alpha = 0.38f)
+    val pale = lerp(color, Color.White, 0.58f)
+    val deep = lerp(color, Color.Black, 0.25f)
     when (shape) {
         PillShape.ROUND -> {
             val r = s * 0.42f
@@ -85,6 +87,120 @@ fun DrawScope.drawPillGlyph(shape: PillShape, color: Color) {
                 topLeft = Offset(c.x - g, cy - g), size = Size(g * 2, g * 2),
                 style = Stroke(s * 0.05f, cap = StrokeCap.Round),
             )
+        }
+        // Powder: a packet with a crimped top and a seal line under it.
+        PillShape.SACHET -> {
+            val w = s * 0.66f
+            val h = s * 0.84f
+            val l = c.x - w / 2
+            val t = c.y - h / 2
+            val tooth = s * 0.06f
+            drawRoundRect(color, Offset(l, t + tooth), Size(w, h - tooth), CornerRadius(s * 0.07f))
+            val teeth = 10
+            val crimp = Path().apply {
+                moveTo(l, t + tooth * 2)
+                for (i in 0..teeth) lineTo(l + w * i / teeth, if (i % 2 == 1) t else t + tooth)
+                lineTo(l + w, t + tooth * 2)
+                close()
+            }
+            drawPath(crimp, color)
+            drawLine(shade, Offset(l + w * 0.14f, t + h * 0.25f), Offset(l + w * 0.86f, t + h * 0.25f), s * 0.045f, StrokeCap.Round)
+            drawLine(glint, Offset(l + w * 0.2f, t + h * 0.42f), Offset(l + w * 0.2f, t + h * 0.8f), s * 0.05f, StrokeCap.Round)
+        }
+        // Cream: a squeeze tube, crimped at one end, tapering to its cap.
+        PillShape.TUBE -> rotate(-40f, c) {
+            val l = c.x - s * 0.46f
+            val crimp = s * 0.07f
+            val end = c.x + s * 0.2f
+            val wide = s * 0.21f
+            val narrow = s * 0.15f
+            drawRoundRect(deep, Offset(l, c.y - wide), Size(crimp, wide * 2), CornerRadius(s * 0.02f))
+            val body = Path().apply {
+                moveTo(l + crimp, c.y - wide)
+                lineTo(end, c.y - narrow)
+                lineTo(end + s * 0.08f, c.y - s * 0.09f)
+                lineTo(end + s * 0.08f, c.y + s * 0.09f)
+                lineTo(end, c.y + narrow)
+                lineTo(l + crimp, c.y + wide)
+                close()
+            }
+            drawPath(body, color)
+            drawRoundRect(pale, Offset(end + s * 0.08f, c.y - s * 0.1f), Size(s * 0.18f, s * 0.2f), CornerRadius(s * 0.04f))
+            drawLine(glint, Offset(l + crimp + s * 0.08f, c.y - wide * 0.5f), Offset(end - s * 0.06f, c.y - narrow * 0.5f), s * 0.05f, StrokeCap.Round)
+        }
+        // Liquid: a bottle with a screw cap and a pale label.
+        PillShape.BOTTLE -> {
+            val w = s * 0.56f
+            val top = c.y - s * 0.22f
+            drawRoundRect(pale, Offset(c.x - s * 0.17f, c.y - s * 0.44f), Size(s * 0.34f, s * 0.24f), CornerRadius(s * 0.05f))
+            drawRoundRect(color, Offset(c.x - w / 2, top), Size(w, c.y + s * 0.44f - top), CornerRadius(s * 0.12f))
+            drawRoundRect(glint, Offset(c.x - w * 0.32f, c.y + s * 0.02f), Size(w * 0.64f, s * 0.2f), CornerRadius(s * 0.03f))
+        }
+        // Nasal spray: a bottle, collar and nozzle, with a puff of mist.
+        PillShape.SPRAY -> {
+            val x = c.x - s * 0.1f
+            val w = s * 0.4f
+            drawRoundRect(pale, Offset(x - s * 0.06f, c.y - s * 0.44f), Size(s * 0.12f, s * 0.34f), CornerRadius(s * 0.05f))
+            drawRoundRect(pale, Offset(x - w * 0.36f, c.y - s * 0.15f), Size(w * 0.72f, s * 0.1f), CornerRadius(s * 0.02f))
+            drawRoundRect(color, Offset(x - w / 2, c.y - s * 0.06f), Size(w, s * 0.5f), CornerRadius(s * 0.1f))
+            drawLine(glint, Offset(x - w * 0.25f, c.y + s * 0.06f), Offset(x - w * 0.25f, c.y + s * 0.3f), s * 0.05f, StrokeCap.Round)
+            drawCircle(color.copy(alpha = 0.7f), s * 0.05f, Offset(x + s * 0.17f, c.y - s * 0.36f))
+            drawCircle(color.copy(alpha = 0.5f), s * 0.04f, Offset(x + s * 0.29f, c.y - s * 0.44f))
+            drawCircle(color.copy(alpha = 0.5f), s * 0.04f, Offset(x + s * 0.3f, c.y - s * 0.28f))
+        }
+        // Inhaler: a canister in an L-shaped holder with a mouthpiece.
+        PillShape.INHALER -> {
+            val x = c.x + s * 0.03f
+            drawRoundRect(pale, Offset(x + s * 0.01f, c.y - s * 0.46f), Size(s * 0.24f, s * 0.32f), CornerRadius(s * 0.08f))
+            drawRoundRect(color, Offset(x - s * 0.04f, c.y - s * 0.22f), Size(s * 0.34f, s * 0.52f), CornerRadius(s * 0.1f))
+            drawRoundRect(color, Offset(x - s * 0.36f, c.y + s * 0.08f), Size(s * 0.42f, s * 0.28f), CornerRadius(s * 0.07f))
+            drawLine(shade, Offset(x - s * 0.29f, c.y + s * 0.15f), Offset(x - s * 0.29f, c.y + s * 0.29f), s * 0.045f, StrokeCap.Round)
+            drawLine(glint, Offset(x + s * 0.04f, c.y - s * 0.13f), Offset(x + s * 0.04f, c.y + s * 0.01f), s * 0.05f, StrokeCap.Round)
+        }
+        // Injection: a syringe, plunger to needle.
+        PillShape.SYRINGE -> rotate(-45f, c) {
+            val l = c.x - s * 0.2f
+            val r = c.x + s * 0.22f
+            val h = s * 0.13f
+            drawLine(pale, Offset(l - s * 0.18f, c.y), Offset(l, c.y), s * 0.07f, StrokeCap.Round)
+            drawLine(pale, Offset(l - s * 0.2f, c.y - h), Offset(l - s * 0.2f, c.y + h), s * 0.07f, StrokeCap.Round)
+            drawLine(deep, Offset(r, c.y), Offset(r + s * 0.25f, c.y), s * 0.03f, StrokeCap.Round)
+            drawRoundRect(color, Offset(r - s * 0.01f, c.y - h * 0.45f), Size(s * 0.07f, h * 0.9f), CornerRadius(s * 0.015f))
+            drawRoundRect(color, Offset(l, c.y - h), Size(r - l, h * 2), CornerRadius(s * 0.04f))
+            drawLine(color, Offset(l, c.y - h * 1.7f), Offset(l, c.y + h * 1.7f), s * 0.06f, StrokeCap.Round)
+            for (i in 1..3) {
+                val mx = l + (r - l) * i / 4f
+                drawLine(shade, Offset(mx, c.y - h), Offset(mx, c.y - h * 0.3f), s * 0.035f, StrokeCap.Round)
+            }
+        }
+        // Skin patch: a soft square with one corner peeling back.
+        PillShape.PATCH -> rotate(-10f, c) {
+            val w = s * 0.74f
+            val l = c.x - w / 2
+            val t = c.y - w / 2
+            val fold = w * 0.34f
+            val r = w * 0.18f
+            val body = Path().apply {
+                moveTo(l + r, t)
+                lineTo(l + w - r, t)
+                arcTo(Rect(l + w - 2 * r, t, l + w, t + 2 * r), -90f, 90f, false)
+                lineTo(l + w, t + w - fold)
+                lineTo(l + w - fold, t + w)
+                lineTo(l + r, t + w)
+                arcTo(Rect(l, t + w - 2 * r, l + 2 * r, t + w), 90f, 90f, false)
+                lineTo(l, t + r)
+                arcTo(Rect(l, t, l + 2 * r, t + 2 * r), 180f, 90f, false)
+                close()
+            }
+            drawPath(body, color)
+            val flap = Path().apply {
+                moveTo(l + w, t + w - fold)
+                lineTo(l + w - fold, t + w)
+                lineTo(l + w - fold, t + w - fold)
+                close()
+            }
+            drawPath(flap, pale)
+            drawLine(glint, Offset(l + w * 0.2f, t + w * 0.2f), Offset(l + w * 0.5f, t + w * 0.2f), s * 0.05f, StrokeCap.Round)
         }
     }
 }

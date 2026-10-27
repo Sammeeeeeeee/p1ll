@@ -37,12 +37,15 @@ import java.util.UUID
 object Notifications {
     const val CHANNEL_DOSES = "doses"
     /**
-     * Where a snoozed reminder moves: minimized, never alerting again. Stock Android files it under
-     * Silent, collapsed. Samsung's One UI has no Silent section (one list, sorted by time) but
-     * collapses minimized notifications and can gather them at the bottom (Filter notifications).
+     * Where a snoozed reminder moves: minimized, never alerting again. Stock Android shows it on one
+     * line under Silent; One UI shows it on one line, under More notifications when Filter
+     * notifications › Minimized notifications is on.
      */
-    const val CHANNEL_QUIET = "doses_quiet"
+    const val CHANNEL_QUIET = "doses_snoozed"
     const val CHANNEL_SUPPLY = "supply"
+
+    /** 1.1.x's snoozed channel. Replaced, not lowered: Android won't lower a channel the user has edited. */
+    private const val CHANNEL_QUIET_OLD = "doses_quiet"
 
     fun ensureChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -62,8 +65,6 @@ object Notifications {
             enableVibration(true)
             vibrationPattern = longArrayOf(0, 40, 90, 60)
         }
-        // Created at LOW in 1.1.x; Android lowers an existing channel to MIN here unless the user
-        // has changed its settings.
         val quiet = NotificationChannel(
             CHANNEL_QUIET,
             context.getString(R.string.channel_quiet),
@@ -75,12 +76,20 @@ object Notifications {
             NotificationManager.IMPORTANCE_DEFAULT,
         )
         manager.createNotificationChannels(listOf(doses, quiet, supply))
+        manager.deleteNotificationChannel(CHANNEL_QUIET_OLD)
     }
 
     fun id(pillId: Long, minute: Int): Int = ((pillId % 1_000_000) * 1440 + minute).toInt()
 
     /** A snoozed reminder is posted under this tag, as its own notification (see [dose]). */
     private const val TAG_SNOOZED = "snoozed"
+
+    /**
+     * Snoozed reminders get a group of their own. Android bundles an app's ungrouped notifications
+     * from two up, and a bundle holding any alerting reminder stays among the alerts, snoozed copy
+     * and all.
+     */
+    private const val GROUP_SNOOZED = "snoozed"
 
     fun cancel(context: Context, pillId: Long, minute: Int) {
         val manager = NotificationManagerCompat.from(context)
@@ -90,16 +99,13 @@ object Notifications {
 
     /**
      * One reminder per dose. It alerts once and stays (out of reach of Clear all) until the dose is
-     * taken or snoozed. [quiet] is the snoozed form: a minimized silent copy, with only Take left. [repostedAt] marks a "remind again" repeat: any copy still showing is replaced
+     * taken or snoozed. [quiet] is the snoozed form: a minimized silent copy, just the name and due
+     * time, with only Take left. [repostedAt] marks a "remind again" repeat: any copy still showing is replaced
      * by a fresh post stamped at that time, so Android treats it as a new alert, not a quiet update.
      */
     fun dose(context: Context, pill: Pill, day: Long, minute: Int, repostedAt: Long? = null, quiet: Boolean = false) {
         if (!allowed(context)) return
         val id = id(pill.id, minute)
-        val due = Fmt.time(context, minute)
-        val dosage = pill.dosage.trim()
-        val text = if (dosage.isEmpty()) context.getString(R.string.notif_due, due)
-        else context.getString(R.string.notif_dose_due, dosage, due)
         val data = Uri.parse("p1ll://dose/${pill.id}/$day/$minute")
 
         fun Intent.dose() = setData(data)
@@ -120,9 +126,7 @@ object Notifications {
         )
         val builder = NotificationCompat.Builder(context, if (quiet) CHANNEL_QUIET else CHANNEL_DOSES)
             .setSmallIcon(R.drawable.ic_stat_p1ll)
-            .setLargeIcon(glyph(context, pill))
             .setContentTitle(pill.name)
-            .setContentText(text)
             .setColor(pillColor(pill.color, dark = false).toArgb())
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(if (quiet) NotificationCompat.PRIORITY_MIN else NotificationCompat.PRIORITY_HIGH)
@@ -132,14 +136,24 @@ object Notifications {
             .setOnlyAlertOnce(quiet)
             .setContentIntent(openApp(context, id))
             .addAction(R.drawable.ic_notif_check, context.getString(R.string.notif_taken), take)
-        if (!quiet) {
+        if (quiet) {
+            builder.setGroup(GROUP_SNOOZED)
+        } else {
+            val due = Fmt.time(context, minute)
+            val dosage = pill.dosage.trim()
             val snooze = PendingIntent.getBroadcast(
                 context,
                 id,
                 Intent(context, ActionReceiver::class.java).setAction(ActionReceiver.ACTION_SNOOZE).dose(),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            builder.addAction(R.drawable.ic_notif_snooze, context.getString(R.string.notif_snooze), snooze)
+            builder
+                .setLargeIcon(glyph(context, pill))
+                .setContentText(
+                    if (dosage.isEmpty()) context.getString(R.string.notif_due, due)
+                    else context.getString(R.string.notif_dose_due, dosage, due),
+                )
+                .addAction(R.drawable.ic_notif_snooze, context.getString(R.string.notif_snooze), snooze)
         }
         val notification = builder.build()
         val manager = NotificationManagerCompat.from(context)

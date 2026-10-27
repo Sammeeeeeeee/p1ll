@@ -79,7 +79,7 @@ class ScreenshotTest {
         return Snapshot(pills, doses, indexDoses(doses), now, loaded = true)
     }
 
-    private val noHome = HomeActions({ _, _ -> }, { _, _ -> }, {}, {}, {}, {}, {}, {}, { _, _ -> }, {})
+    private val noHome = HomeActions({ _, _ -> }, { _, _ -> }, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, {})
 
     private fun shot(name: String, dark: Boolean = false, content: @Composable () -> Unit) {
         compose.mainClock.autoAdvance = false

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -86,6 +87,7 @@ import io.github.sammeeeeeeee.p1ll.ui.components.tappable
 import io.github.sammeeeeeeee.p1ll.ui.feedback.LocalFeedback
 import io.github.sammeeeeeeee.p1ll.ui.nav.morph
 import io.github.sammeeeeeeee.p1ll.ui.theme.P1ll
+import io.github.sammeeeeeeee.p1ll.ui.theme.PillColorOrder
 import io.github.sammeeeeeeee.p1ll.ui.theme.PillColors
 import io.github.sammeeeeeeee.p1ll.ui.theme.Type
 import io.github.sammeeeeeeee.p1ll.ui.theme.pillColor
@@ -229,51 +231,55 @@ fun EditorScreen(
 
             Spacer(Modifier.height(24.dp))
             Surface(Modifier.enter(2)) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    PillShape.entries.forEach { shape ->
-                        val selected = shape == state.shape
-                        val lift by animateFloatAsState(if (selected) 1.08f else 1f, spring(0.45f, 500f), label = "lift")
-                        Box(
-                            Modifier
-                                .size(54.dp)
-                                .tappable(pressedScale = 0.88f) {
-                                    feedback.tick()
-                                    state.shape = shape
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    PillShape.entries.chunked(6).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            row.forEach { shape ->
+                                val selected = shape == state.shape
+                                val lift by animateFloatAsState(if (selected) 1.08f else 1f, spring(0.45f, 500f), label = "lift")
+                                Box(
+                                    Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f)
+                                        .tappable(pressedScale = 0.88f) {
+                                            feedback.tick()
+                                            state.shape = shape
+                                        }
+                                        .graphicsLayer { scaleX = lift; scaleY = lift }
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(if (selected) color.copy(alpha = 0.12f) else c.surface)
+                                        .border(if (selected) 2.5.dp else 0.dp, if (selected) color else c.surface, RoundedCornerShape(16.dp)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    PillGlyph(shape, if (selected) color else c.ink3, Modifier.fillMaxSize(0.64f), badge = false)
                                 }
-                                .graphicsLayer { scaleX = lift; scaleY = lift }
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(if (selected) color.copy(alpha = 0.12f) else c.surface)
-                                .border(if (selected) 2.5.dp else 0.dp, if (selected) color else c.surface, RoundedCornerShape(18.dp)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            PillGlyph(shape, if (selected) color else c.ink3, Modifier.size(34.dp), badge = false)
+                            }
                         }
                     }
                 }
                 Divider()
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    PillColors.indices.forEach { i ->
-                        val selected = i == state.color
-                        val ring by animateFloatAsState(if (selected) 1f else 0f, spring(0.5f, 500f), label = "ring")
-                        val swatch = pillColor(i, c.dark)
-                        Box(
-                            Modifier
-                                .size(34.dp)
-                                .tappable(pressedScale = 0.8f) {
-                                    feedback.tick()
-                                    state.color = i
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Box(Modifier.size(34.dp).graphicsLayer { alpha = ring; scaleX = 0.7f + 0.3f * ring; scaleY = 0.7f + 0.3f * ring }
-                                .border(2.dp, swatch, CircleShape))
-                            Box(Modifier.size(24.dp - 4.dp * ring).clip(CircleShape).background(swatch))
+                Column(Modifier.padding(horizontal = 10.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PillColorOrder.chunked(6).forEach { row ->
+                        Row {
+                            row.forEach { i ->
+                                val selected = i == state.color
+                                val ring by animateFloatAsState(if (selected) 1f else 0f, spring(0.5f, 500f), label = "ring")
+                                val swatch = pillColor(i, c.dark)
+                                Box(
+                                    Modifier
+                                        .weight(1f)
+                                        .height(34.dp)
+                                        .tappable(pressedScale = 0.8f) {
+                                            feedback.tick()
+                                            state.color = i
+                                        },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Box(Modifier.size(34.dp).graphicsLayer { alpha = ring; scaleX = 0.7f + 0.3f * ring; scaleY = 0.7f + 0.3f * ring }
+                                        .border(2.dp, swatch, CircleShape))
+                                    Box(Modifier.size(24.dp - 4.dp * ring).clip(CircleShape).background(swatch))
+                                }
+                            }
                         }
                     }
                 }

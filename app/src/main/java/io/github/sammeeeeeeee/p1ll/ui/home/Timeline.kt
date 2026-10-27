@@ -191,10 +191,11 @@ fun DoseRowView(
     )
     val glyphAlpha by animateFloatAsState(if (done) 0.5f else 1f, tween(300), label = "glyphAlpha")
 
+    // Any dose can be swiped to the other state, so a wrong tick (or a filled-in past) can be put right.
     SwipeRow(
         color = color,
-        onTake = if (slot.status == SlotStatus.PENDING) ({ onTake(slot) }) else null,
-        onSkip = if (slot.status == SlotStatus.PENDING) ({ onSkip(slot) }) else null,
+        onTake = if (slot.status != SlotStatus.TAKEN) ({ onTake(slot) }) else null,
+        onSkip = if (slot.status != SlotStatus.SKIPPED) ({ onSkip(slot) }) else null,
         modifier = modifier,
     ) {
         val band = wash(color, c.dark, c.surface)
