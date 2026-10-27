@@ -17,6 +17,7 @@ import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -110,9 +111,9 @@ class ReminderFlowTest {
         assertEquals("snoozed", quiet.group)
         assertNull(shown("Psyllium husk").group)
         assertEquals(Notifications.CHANNEL_DOSES, shown("Psyllium husk").channelId)
-        // Just the name and due time.
-        assertNull(quiet.extras.getCharSequence(Notification.EXTRA_TEXT))
-        assertNull(quiet.getLargeIcon())
+        // The same details as the reminder it replaces.
+        assertEquals("50 mg, due ${Fmt.time(app, minute)}", quiet.extras.getString(Notification.EXTRA_TEXT))
+        assertNotNull(quiet.getLargeIcon())
         assertTrue(quiet.flags and Notification.FLAG_ONGOING_EVENT == 0)
         assertEquals(listOf(app.getString(R.string.notif_taken)), quiet.actions.map { it.title.toString() })
 

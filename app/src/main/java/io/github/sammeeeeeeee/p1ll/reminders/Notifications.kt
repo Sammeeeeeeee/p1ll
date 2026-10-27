@@ -99,13 +99,17 @@ object Notifications {
 
     /**
      * One reminder per dose. It alerts once and stays (out of reach of Clear all) until the dose is
-     * taken or snoozed. [quiet] is the snoozed form: a minimized silent copy, just the name and due
-     * time, with only Take left. [repostedAt] marks a "remind again" repeat: any copy still showing is replaced
+     * taken or snoozed. [quiet] is the snoozed form: a minimized silent copy with the same details,
+     * and only Take left. [repostedAt] marks a "remind again" repeat: any copy still showing is replaced
      * by a fresh post stamped at that time, so Android treats it as a new alert, not a quiet update.
      */
     fun dose(context: Context, pill: Pill, day: Long, minute: Int, repostedAt: Long? = null, quiet: Boolean = false) {
         if (!allowed(context)) return
         val id = id(pill.id, minute)
+        val due = Fmt.time(context, minute)
+        val dosage = pill.dosage.trim()
+        val text = if (dosage.isEmpty()) context.getString(R.string.notif_due, due)
+        else context.getString(R.string.notif_dose_due, dosage, due)
         val data = Uri.parse("p1ll://dose/${pill.id}/$day/$minute")
 
         fun Intent.dose() = setData(data)
@@ -126,7 +130,9 @@ object Notifications {
         )
         val builder = NotificationCompat.Builder(context, if (quiet) CHANNEL_QUIET else CHANNEL_DOSES)
             .setSmallIcon(R.drawable.ic_stat_p1ll)
+            .setLargeIcon(glyph(context, pill))
             .setContentTitle(pill.name)
+            .setContentText(text)
             .setColor(pillColor(pill.color, dark = false).toArgb())
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(if (quiet) NotificationCompat.PRIORITY_MIN else NotificationCompat.PRIORITY_HIGH)
@@ -139,21 +145,13 @@ object Notifications {
         if (quiet) {
             builder.setGroup(GROUP_SNOOZED)
         } else {
-            val due = Fmt.time(context, minute)
-            val dosage = pill.dosage.trim()
             val snooze = PendingIntent.getBroadcast(
                 context,
                 id,
                 Intent(context, ActionReceiver::class.java).setAction(ActionReceiver.ACTION_SNOOZE).dose(),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            builder
-                .setLargeIcon(glyph(context, pill))
-                .setContentText(
-                    if (dosage.isEmpty()) context.getString(R.string.notif_due, due)
-                    else context.getString(R.string.notif_dose_due, dosage, due),
-                )
-                .addAction(R.drawable.ic_notif_snooze, context.getString(R.string.notif_snooze), snooze)
+            builder.addAction(R.drawable.ic_notif_snooze, context.getString(R.string.notif_snooze), snooze)
         }
         val notification = builder.build()
         val manager = NotificationManagerCompat.from(context)
