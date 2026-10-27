@@ -55,5 +55,5 @@ Signing certificate SHA-256:
 - Reminders use `USE_EXACT_ALARM`, granted at install on Android 13+. Play allows it only for alarm and calendar apps, so a Play build would need `SCHEDULE_EXACT_ALARM`.
 - One alarm drives all reminders, so doses due together aren't throttled under Doze and missed ones post after a reboot.
 - On Pixel 9 and 10, Android 16's Notification organizer can file individual notifications as silent. If reminders arrive without sound, exclude p1ll under Settings › Notifications › Notification organizer.
-- A snoozed reminder is minimized, in a group of its own so Android never bundles it with a reminder still alerting. Stock Android shows it on one line under Silent. Samsung's One UI puts it under More notifications when Settings › Notifications › Advanced settings › Filter notifications › Minimized notifications is on.
+- A snoozed reminder is minimized, on a channel of its own (Android won't quieten a channel the user has edited, so 1.1.x's was replaced). Stock Android shows it on one line under Silent. Samsung's One UI shows it on one line, and under More notifications only when Settings › Notifications › Advanced settings › Filter notifications › Minimized notifications is on.
 - Fonts: [Red Hat Display and Red Hat Text](https://github.com/RedHatOfficial/RedHatFont), SIL Open Font License (`licenses/`).

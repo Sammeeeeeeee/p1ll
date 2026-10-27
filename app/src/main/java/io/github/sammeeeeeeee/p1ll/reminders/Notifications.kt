@@ -85,9 +85,9 @@ object Notifications {
     private const val TAG_SNOOZED = "snoozed"
 
     /**
-     * Snoozed reminders get a group of their own. Android bundles an app's ungrouped notifications
-     * from two up, and a bundle holding any alerting reminder stays among the alerts, snoozed copy
-     * and all.
+     * Snoozed reminders get a group of their own. Up to Android 15, an app's ungrouped notifications
+     * are bundled from two up whatever their importance, and a bundle holding any alerting reminder
+     * stays among the alerts, snoozed copy and all. Android 16 bundles by section instead.
      */
     private const val GROUP_SNOOZED = "snoozed"
 
