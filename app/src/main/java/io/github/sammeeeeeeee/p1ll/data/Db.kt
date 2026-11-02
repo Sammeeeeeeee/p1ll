@@ -10,6 +10,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -33,7 +35,7 @@ interface PillDao {
     suspend fun delete(pill: Pill)
 
     @Query("UPDATE pills SET stock = :stock WHERE id = :id")
-    suspend fun setStock(id: Long, stock: Int?)
+    suspend fun setStock(id: Long, stock: Double?)
 }
 
 @Dao
@@ -63,7 +65,7 @@ interface DoseDao {
     suspend fun delete(id: Long)
 }
 
-@Database(entities = [Pill::class, Dose::class], version = 1, exportSchema = true)
+@Database(entities = [Pill::class, Dose::class], version = 2, exportSchema = true)
 @TypeConverters(Converters::class)
 abstract class P1llDb : RoomDatabase() {
     abstract fun pills(): PillDao
@@ -71,6 +73,32 @@ abstract class P1llDb : RoomDatabase() {
 
     companion object {
         fun create(context: Context) =
-            Room.databaseBuilder(context, P1llDb::class.java, "p1ll.db").build()
+            Room.databaseBuilder(context, P1llDb::class.java, "p1ll.db").addMigrations(MIGRATION_1_2).build()
+    }
+}
+
+/**
+ * The free-text dose becomes the strength; pills per dose becomes a counted amount; supply
+ * goes fractional so half pills and 2.5 ml doses count down properly. SQLite can't change a
+ * column's type in place, so the table is rebuilt. Room runs migrations before it turns foreign
+ * keys on, so dropping the old table leaves the doses alone.
+ */
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE `pills_new` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                "`strength` TEXT NOT NULL, `color` INTEGER NOT NULL, `shape` TEXT NOT NULL, `schedule` TEXT NOT NULL, " +
+                "`weekdays` INTEGER NOT NULL, `intervalDays` INTEGER NOT NULL, `times` TEXT NOT NULL, `startDay` INTEGER NOT NULL, " +
+                "`endDay` INTEGER, `optional` INTEGER NOT NULL, `notes` TEXT NOT NULL, `stock` REAL, `amount` REAL NOT NULL, " +
+                "`unit` TEXT NOT NULL, `refillAt` INTEGER, `createdAt` INTEGER NOT NULL)",
+        )
+        db.execSQL(
+            "INSERT INTO `pills_new` (id, name, strength, color, shape, schedule, weekdays, intervalDays, times, startDay, " +
+                "endDay, optional, notes, stock, amount, unit, refillAt, createdAt) " +
+                "SELECT id, name, dosage, color, shape, schedule, weekdays, intervalDays, times, startDay, " +
+                "endDay, optional, notes, stock, perDose, 'COUNT', refillAt, createdAt FROM `pills`",
+        )
+        db.execSQL("DROP TABLE `pills`")
+        db.execSQL("ALTER TABLE `pills_new` RENAME TO `pills`")
     }
 }

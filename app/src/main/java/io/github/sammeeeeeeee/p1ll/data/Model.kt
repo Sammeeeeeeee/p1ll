@@ -13,11 +13,15 @@ enum class PillShape { ROUND, CAPSULE, OVAL, TABLET, DROP, SACHET, TUBE, BOTTLE,
 
 enum class DoseStatus { TAKEN, SKIPPED }
 
+/** What a dose is measured in. A count takes its noun from the form: pills, drops, puffs, patches. */
+enum class DoseUnit { COUNT, ML, G }
+
 @Entity(tableName = "pills")
 data class Pill(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val dosage: String = "",
+    /** Free text, e.g. "50 mg". */
+    val strength: String = "",
     /** Index into [io.github.sammeeeeeeee.p1ll.ui.theme.PillColors]. */
     val color: Int = 0,
     val shape: PillShape = PillShape.ROUND,
@@ -34,9 +38,11 @@ data class Pill(
     /** Optional pills are reminded but never count as missed. */
     val optional: Boolean = false,
     val notes: String = "",
-    /** Pills left; null when supply isn't tracked. */
-    val stock: Int? = null,
-    val perDose: Int = 1,
+    /** Supply left in [unit]; null when it isn't tracked. */
+    val stock: Double? = null,
+    /** How much one dose is, in [unit]. */
+    val amount: Double = 1.0,
+    val unit: DoseUnit = DoseUnit.COUNT,
     val refillAt: Int? = null,
     val createdAt: Long,
 ) {

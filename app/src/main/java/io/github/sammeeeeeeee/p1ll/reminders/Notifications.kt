@@ -28,6 +28,7 @@ import io.github.sammeeeeeeee.p1ll.MainActivity
 import io.github.sammeeeeeeee.p1ll.R
 import io.github.sammeeeeeeee.p1ll.data.Pill
 import io.github.sammeeeeeeee.p1ll.domain.slotTime
+import io.github.sammeeeeeeee.p1ll.ui.Describe
 import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import io.github.sammeeeeeeee.p1ll.ui.components.drawGlyphBadge
 import io.github.sammeeeeeeee.p1ll.ui.theme.pillColor
@@ -107,9 +108,8 @@ object Notifications {
         if (!allowed(context)) return
         val id = id(pill.id, minute)
         val due = Fmt.time(context, minute)
-        val dosage = pill.dosage.trim()
-        val text = if (dosage.isEmpty()) context.getString(R.string.notif_due, due)
-        else context.getString(R.string.notif_dose_due, dosage, due)
+        val dose = listOf(Describe.amount(pill.amount, pill.unit, pill.shape), pill.strength.trim()).filter { it.isNotEmpty() }.joinToString(", ")
+        val text = context.getString(R.string.notif_dose_due, dose, due)
         val data = Uri.parse("p1ll://dose/${pill.id}/$day/$minute")
 
         fun Intent.dose() = setData(data)
@@ -199,15 +199,11 @@ object Notifications {
 
     fun lowStock(context: Context, pill: Pill) {
         if (!allowed(context)) return
-        val left = pill.stock ?: return
-        val perDay = (pill.times.size * pill.perDose).coerceAtLeast(1)
-        val days = left / perDay
-        val text = if (pill.asNeeded) context.resources.getQuantityString(R.plurals.left, left, left)
-        else context.getString(
-            R.string.notif_low_text,
-            context.resources.getQuantityString(R.plurals.left, left, left),
-            context.resources.getQuantityString(R.plurals.days, days, days),
-        )
+        if (pill.stock == null) return
+        val left = context.getString(R.string.left, Describe.supply(pill))
+        val days = Describe.daysOfSupply(pill)
+        val text = if (days == null) left
+        else context.getString(R.string.notif_low_text, left, context.resources.getQuantityString(R.plurals.days, days, days))
         val notification = NotificationCompat.Builder(context, CHANNEL_SUPPLY)
             .setSmallIcon(R.drawable.ic_stat_p1ll)
             .setLargeIcon(glyph(context, pill))

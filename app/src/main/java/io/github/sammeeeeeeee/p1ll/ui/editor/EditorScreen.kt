@@ -65,9 +65,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import io.github.sammeeeeeeee.p1ll.data.DoseUnit
 import io.github.sammeeeeeeee.p1ll.data.Pill
 import io.github.sammeeeeeeee.p1ll.data.PillShape
 import io.github.sammeeeeeeee.p1ll.data.ScheduleType
+import io.github.sammeeeeeeee.p1ll.ui.Describe
 import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import io.github.sammeeeeeeee.p1ll.ui.components.Chip
 import io.github.sammeeeeeeee.p1ll.ui.components.CircleButton
@@ -101,7 +103,10 @@ import java.util.Locale
 @Stable
 class EditorState(private val base: Pill?, today: Long, usedColors: Set<Int>) {
     var name by mutableStateOf(base?.name ?: "")
-    var dosage by mutableStateOf(base?.dosage ?: "")
+    var strength by mutableStateOf(base?.strength ?: "")
+    var unit by mutableStateOf(base?.unit ?: DoseUnit.COUNT)
+    /** Kept as typed, so "2." survives until the next digit. */
+    var amount by mutableStateOf(Fmt.amount(base?.amount ?: 1.0))
     var color by mutableIntStateOf(base?.color ?: (PillColors.indices.firstOrNull { it !in usedColors } ?: 0))
     var shape by mutableStateOf(base?.shape ?: PillShape.ROUND)
     var schedule by mutableStateOf(base?.schedule ?: ScheduleType.DAILY)
@@ -113,17 +118,25 @@ class EditorState(private val base: Pill?, today: Long, usedColors: Set<Int>) {
     var optional by mutableStateOf(base?.optional ?: false)
     var notes by mutableStateOf(base?.notes ?: "")
     var trackStock by mutableStateOf(base?.stock != null)
-    var stock by mutableStateOf(base?.stock?.toString() ?: "30")
-    var perDose by mutableIntStateOf(base?.perDose ?: 1)
+    var stock by mutableStateOf(base?.stock?.let(Fmt::amount) ?: "30")
     var refillAt by mutableStateOf(base?.refillAt?.toString() ?: "7")
     var backfill by mutableStateOf(true)
 
     val isNew get() = base == null
 
+    private val amountValue get() = amount.toDoubleOrNull()?.takeIf { it > 0 }
+
     val valid: Boolean
-        get() = name.isNotBlank() &&
+        get() = name.isNotBlank() && amountValue != null &&
             (schedule == ScheduleType.AS_NEEDED || times.isNotEmpty()) &&
             (schedule != ScheduleType.WEEKDAYS || weekdays != 0)
+
+    /** Counts, volumes and weights don't convert, so switching starts from a typical dose. */
+    fun pickUnit(next: DoseUnit) {
+        if (next == unit) return
+        amount = if (next == DoseUnit.ML) "5" else "1"
+        unit = next
+    }
 
     fun addTime() {
         val next = times.maxOrNull()?.let { (it + 6 * 60).coerceAtMost(22 * 60) } ?: (8 * 60)
@@ -136,7 +149,7 @@ class EditorState(private val base: Pill?, today: Long, usedColors: Set<Int>) {
     fun build(now: Long): Pill = Pill(
         id = base?.id ?: 0,
         name = name.trim(),
-        dosage = dosage.trim(),
+        strength = strength.trim(),
         color = color,
         shape = shape,
         schedule = schedule,
@@ -147,8 +160,9 @@ class EditorState(private val base: Pill?, today: Long, usedColors: Set<Int>) {
         endDay = endDay,
         optional = optional,
         notes = notes.trim(),
-        stock = if (trackStock) stock.toIntOrNull() ?: 0 else null,
-        perDose = perDose,
+        stock = if (trackStock) stock.toDoubleOrNull() ?: 0.0 else null,
+        amount = amountValue ?: 1.0,
+        unit = unit,
         refillAt = if (trackStock) refillAt.toIntOrNull() else null,
         createdAt = base?.createdAt ?: now,
     )
@@ -227,7 +241,7 @@ fun EditorScreen(
                 capitalization = KeyboardCapitalization.Words,
             )
             Spacer(Modifier.height(4.dp))
-            Field(state.dosage, { state.dosage = it }, "Dose", Type.body.copy(color = c.ink2))
+            Field(state.strength, { state.strength = it }, "Strength", Type.body.copy(color = c.ink2))
 
             Spacer(Modifier.height(24.dp))
             Surface(Modifier.enter(2)) {
@@ -288,6 +302,17 @@ fun EditorScreen(
             Spacer(Modifier.height(16.dp))
             Surface(Modifier.enter(3)) {
                 Column(Modifier.padding(14.dp)) {
+                    Segmented(DoseUnit.entries, state.unit, label = { unitTitle(it, state.shape) }, onSelect = state::pickUnit)
+                    Row(Modifier.fillMaxWidth().padding(top = 16.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Each dose", style = Type.bodyStrong, modifier = Modifier.weight(1f))
+                        AmountStepper(state.amount, { state.amount = it }, state.unit, state.shape)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Surface(Modifier.enter(4)) {
+                Column(Modifier.padding(14.dp)) {
                     Segmented(
                         listOf(ScheduleType.DAILY, ScheduleType.WEEKDAYS, ScheduleType.INTERVAL, ScheduleType.AS_NEEDED),
                         state.schedule,
@@ -331,7 +356,7 @@ fun EditorScreen(
             }
 
             Spacer(Modifier.height(16.dp))
-            Surface(Modifier.enter(4)) {
+            Surface(Modifier.enter(5)) {
                 if (state.schedule != ScheduleType.AS_NEEDED) {
                     SettingRow("Optional", hint = "Never counts as missed") {
                         Toggle(state.optional, { state.optional = it })
@@ -358,18 +383,14 @@ fun EditorScreen(
                     exit = shrinkVertically(spring(0.9f, 400f)) + fadeOut(),
                 ) {
                     Column(Modifier.padding(start = 18.dp, end = 14.dp, bottom = 14.dp)) {
-                        NumberRow("Pills left", state.stock) { state.stock = it }
+                        NumberRow("${unitTitle(state.unit, state.shape)} left", state.stock, decimal = true) { state.stock = it }
                         NumberRow("Refill at", state.refillAt) { state.refillAt = it }
-                        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Per dose", style = Type.bodyStrong, modifier = Modifier.weight(1f))
-                            Stepper(state.perDose, { state.perDose = it }, 1..10)
-                        }
                     }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
-            Surface(Modifier.enter(5)) {
+            Surface(Modifier.enter(6)) {
                 Field(
                     state.notes, { state.notes = it }, "Notes", Type.body,
                     Modifier.padding(18.dp),
@@ -435,23 +456,69 @@ private fun Field(
 private fun androidx.compose.ui.graphics.Color.isSpecifiedColor() = this != androidx.compose.ui.graphics.Color.Unspecified
 
 @Composable
-private fun NumberRow(label: String, value: String, onChange: (String) -> Unit) {
-    val c = P1ll.colors
+private fun NumberRow(label: String, value: String, decimal: Boolean = false, onChange: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = Type.bodyStrong, modifier = Modifier.weight(1f))
-        BasicTextField(
-            value = value,
-            onValueChange = { v -> onChange(v.filter(Char::isDigit).take(4)) },
-            textStyle = Type.headline.copy(color = c.ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
-            cursorBrush = SolidColor(c.ink),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier
-                .width(84.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(c.raised)
-                .padding(vertical = 8.dp),
-        )
+        NumberField(value, if (decimal) ({ onChange(decimalText(it)) }) else ({ onChange(it.filter(Char::isDigit).take(4)) }), decimal, Modifier.width(84.dp))
+    }
+}
+
+@Composable
+private fun NumberField(value: String, onChange: (String) -> Unit, decimal: Boolean, modifier: Modifier) {
+    val c = P1ll.colors
+    BasicTextField(
+        value = value,
+        onValueChange = onChange,
+        textStyle = Type.headline.copy(color = c.ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+        cursorBrush = SolidColor(c.ink),
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number),
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.raised)
+            .padding(vertical = 8.dp),
+    )
+}
+
+/** Digits and one point (a comma counts as one), at most six characters. */
+private fun decimalText(raw: String): String {
+    val t = raw.replace(',', '.').filter { it.isDigit() || it == '.' }
+    val point = t.indexOf('.')
+    return (if (point < 0) t else t.substring(0, point + 1) + t.substring(point + 1).replace(".", "")).take(6)
+}
+
+/** "Pills", "Puffs", "ml", "g": a count is named after the form. */
+private fun unitTitle(unit: DoseUnit, shape: PillShape) =
+    if (unit == DoseUnit.COUNT) Describe.unit(unit, shape).replaceFirstChar(Char::titlecase) else Describe.unit(unit, shape)
+
+/** Halves for pills and grams, 2.5 ml for liquids, whole drops, puffs and the rest. The number can also be typed. */
+@Composable
+private fun AmountStepper(text: String, onChange: (String) -> Unit, unit: DoseUnit, shape: PillShape) {
+    val c = P1ll.colors
+    val feedback = LocalFeedback.current
+    val pill = shape in setOf(PillShape.ROUND, PillShape.CAPSULE, PillShape.OVAL, PillShape.TABLET)
+    val step = when {
+        unit == DoseUnit.ML -> 2.5
+        unit == DoseUnit.G || pill -> 0.5
+        else -> 1.0
+    }
+    val min = if (unit == DoseUnit.ML) 0.5 else step
+    val value = text.toDoubleOrNull()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CircleButton(Icons.Minus, "Less", {
+            if (value != null && value - step >= min) {
+                feedback.tick()
+                onChange(Fmt.amount(value - step))
+            }
+        }, size = 36.dp)
+        Spacer(Modifier.width(8.dp))
+        NumberField(text, { onChange(decimalText(it)) }, decimal = true, Modifier.width(56.dp))
+        Text(" ${Describe.unit(unit, shape, value ?: 2.0)}", style = Type.headline, color = c.ink2)
+        Spacer(Modifier.width(8.dp))
+        CircleButton(Icons.Plus, "More", {
+            feedback.tick()
+            onChange(Fmt.amount((value ?: 0.0) + step))
+        }, size = 36.dp)
     }
 }
 
