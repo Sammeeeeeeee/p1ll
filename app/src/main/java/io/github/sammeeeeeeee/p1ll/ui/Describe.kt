@@ -42,11 +42,12 @@ object Describe {
         return listOf(amount(p.amount, p.unit, p.shape), p.strength.trim(), pattern).filter { it.isNotEmpty() }.joinToString(", ")
     }
 
-    /** "1 pill", "7.5 ml", "2 puffs". */
+    /** "1 pill", "7.5 ml", "5 g", "2 puffs". */
     fun amount(amount: Double, unit: DoseUnit, shape: PillShape): String = "${Fmt.amount(amount)} ${unit(unit, shape, amount)}"
 
     fun unit(unit: DoseUnit, shape: PillShape, amount: Double = 2.0): String {
         if (unit == DoseUnit.ML) return "ml"
+        if (unit == DoseUnit.G) return "g"
         val (one, many) = when (shape) {
             PillShape.ROUND, PillShape.CAPSULE, PillShape.OVAL, PillShape.TABLET -> "pill" to "pills"
             PillShape.DROP -> "drop" to "drops"

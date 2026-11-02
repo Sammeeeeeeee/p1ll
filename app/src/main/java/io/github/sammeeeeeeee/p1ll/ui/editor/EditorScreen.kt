@@ -131,7 +131,7 @@ class EditorState(private val base: Pill?, today: Long, usedColors: Set<Int>) {
             (schedule == ScheduleType.AS_NEEDED || times.isNotEmpty()) &&
             (schedule != ScheduleType.WEEKDAYS || weekdays != 0)
 
-    /** Volumes and counts don't convert, so switching starts from a typical dose. */
+    /** Counts, volumes and weights don't convert, so switching starts from a typical dose. */
     fun pickUnit(next: DoseUnit) {
         if (next == unit) return
         amount = if (next == DoseUnit.ML) "5" else "1"
@@ -487,11 +487,11 @@ private fun decimalText(raw: String): String {
     return (if (point < 0) t else t.substring(0, point + 1) + t.substring(point + 1).replace(".", "")).take(6)
 }
 
-/** "Pills", "Puffs", "ml": a count is named after the form. */
+/** "Pills", "Puffs", "ml", "g": a count is named after the form. */
 private fun unitTitle(unit: DoseUnit, shape: PillShape) =
-    if (unit == DoseUnit.ML) "ml" else Describe.unit(unit, shape).replaceFirstChar(Char::titlecase)
+    if (unit == DoseUnit.COUNT) Describe.unit(unit, shape).replaceFirstChar(Char::titlecase) else Describe.unit(unit, shape)
 
-/** Halves for pills, 2.5 ml for liquids, whole drops, puffs and the rest. The number can also be typed. */
+/** Halves for pills and grams, 2.5 ml for liquids, whole drops, puffs and the rest. The number can also be typed. */
 @Composable
 private fun AmountStepper(text: String, onChange: (String) -> Unit, unit: DoseUnit, shape: PillShape) {
     val c = P1ll.colors
@@ -499,7 +499,7 @@ private fun AmountStepper(text: String, onChange: (String) -> Unit, unit: DoseUn
     val pill = shape in setOf(PillShape.ROUND, PillShape.CAPSULE, PillShape.OVAL, PillShape.TABLET)
     val step = when {
         unit == DoseUnit.ML -> 2.5
-        pill -> 0.5
+        unit == DoseUnit.G || pill -> 0.5
         else -> 1.0
     }
     val min = if (unit == DoseUnit.ML) 0.5 else step

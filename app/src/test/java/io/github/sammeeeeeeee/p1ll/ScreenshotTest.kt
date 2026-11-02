@@ -57,6 +57,7 @@ class ScreenshotTest {
             Pill(4, "Ibuprofen", "200 mg", color = 0, shape = PillShape.TABLET, schedule = ScheduleType.AS_NEEDED, times = emptyList(), startDay = today - 300, amount = 2.0, createdAt = created),
             Pill(5, "Amoxicillin", "250 mg/5 ml", color = 3, shape = PillShape.BOTTLE, times = listOf(480, 1320), startDay = today - 3, endDay = today + 4, amount = 7.5, unit = DoseUnit.ML, createdAt = created),
             Pill(6, "Iron", "", color = 7, shape = PillShape.DROP, schedule = ScheduleType.WEEKDAYS, weekdays = 0b0101010, times = listOf(600), startDay = today - 60, createdAt = created),
+            Pill(7, "Psyllium husk", "", color = 2, shape = PillShape.SACHET, schedule = ScheduleType.AS_NEEDED, times = emptyList(), startDay = today - 30, amount = 5.0, unit = DoseUnit.G, createdAt = created),
         )
         val random = Random(4)
         var id = 1L

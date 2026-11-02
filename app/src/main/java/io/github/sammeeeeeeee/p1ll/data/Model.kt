@@ -14,7 +14,7 @@ enum class PillShape { ROUND, CAPSULE, OVAL, TABLET, DROP, SACHET, TUBE, BOTTLE,
 enum class DoseStatus { TAKEN, SKIPPED }
 
 /** What a dose is measured in. A count takes its noun from the form: pills, drops, puffs, patches. */
-enum class DoseUnit { COUNT, ML }
+enum class DoseUnit { COUNT, ML, G }
 
 @Entity(tableName = "pills")
 data class Pill(

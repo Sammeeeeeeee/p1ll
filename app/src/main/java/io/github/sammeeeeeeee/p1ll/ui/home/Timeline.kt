@@ -266,7 +266,8 @@ fun DoseRowView(
                 pill.unit,
                 pill.shape,
                 color,
-                Modifier.padding(top = 13.dp).graphicsLayer { alpha = glyphAlpha },
+                Modifier.padding(top = 13.dp, bottom = 12.dp).graphicsLayer { alpha = glyphAlpha },
+                strength = pill.strength,
             )
             Box(Modifier.heightIn(min = 46.dp).padding(top = 5.dp), contentAlignment = Alignment.TopEnd) {
                 val trailing: Trailing? = when {
@@ -315,7 +316,6 @@ private sealed interface Trailing {
 @Composable
 private fun meta(pill: Pill, showStock: Boolean): String {
     val parts = mutableListOf<String>()
-    if (pill.strength.isNotBlank()) parts += pill.strength.trim()
     if (pill.optional) parts += "optional"
     val stock = pill.stock
     if (showStock && stock != null && pill.refillAt != null && stock <= pill.refillAt) parts += "${Fmt.amount(stock)} left"
@@ -514,13 +514,12 @@ fun QuietRow(
                         card.takenToday == 1 -> "taken $last"
                         else -> "${card.takenToday} taken, last $last"
                     }
-                    listOfNotNull(pill.strength.takeIf { it.isNotBlank() }, taken).joinToString(", ")
+                    taken.orEmpty()
                 }
                 onLog != null -> {
                     val last = card.lastTakenAt
                     val lastText = last?.let { "taken ${Fmt.ago((now.toInstant().toEpochMilli() - it) / 60_000)}" }
-                    listOfNotNull(pill.strength.takeIf { it.isNotBlank() }, lastText, if (card.takenToday > 1) "${card.takenToday} today" else null)
-                        .joinToString(", ")
+                    listOfNotNull(lastText, if (card.takenToday > 1) "${card.takenToday} today" else null).joinToString(", ")
                 }
                 else -> card.next?.let { Describe.whenNext(context, it, now).replaceFirstChar(Char::titlecase) } ?: Describe.schedule(pill)
             }
@@ -528,7 +527,7 @@ fun QuietRow(
         }
         if (onLog != null) {
             Spacer(Modifier.width(8.dp))
-            DoseMark(pill.amount, pill.unit, pill.shape, color)
+            DoseMark(pill.amount, pill.unit, pill.shape, color, strength = pill.strength)
             Spacer(Modifier.width(10.dp))
             var logged by remember { mutableIntStateOf(0) }
             LaunchedEffect(logged) {

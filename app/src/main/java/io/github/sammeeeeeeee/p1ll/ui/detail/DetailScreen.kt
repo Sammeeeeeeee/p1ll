@@ -233,9 +233,10 @@ fun DetailScreen(pillId: Long, snapshot: Snapshot, actions: DetailActions) {
     }
 }
 
-/** Common pack sizes: bottles in ml, inhalers and sprays in puffs, otherwise boxes. */
+/** Common pack sizes: bottles in ml, tubes and tubs in g, inhalers and sprays in puffs, otherwise boxes. */
 private fun refills(pill: Pill) = when {
     pill.unit == DoseUnit.ML -> listOf(100, 150, 200, 500)
+    pill.unit == DoseUnit.G -> listOf(15, 30, 50, 100)
     pill.shape == PillShape.INHALER || pill.shape == PillShape.SPRAY -> listOf(60, 120, 200)
     else -> listOf(14, 28, 30, 90)
 }
