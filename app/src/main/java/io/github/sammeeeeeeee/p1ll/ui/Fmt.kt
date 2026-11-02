@@ -27,6 +27,10 @@ object Fmt {
     fun shortDate(day: Long): String =
         LocalDate.ofEpochDay(day).format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
 
+    /** "2", "2.5", "3.75": no trailing zeros. */
+    fun amount(value: Double): String =
+        java.math.BigDecimal(value).setScale(2, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString()
+
     /** "in 2 h 5 min", "in 12 min", "now". */
     fun until(minutes: Long): String = when {
         minutes <= 0 -> "now"

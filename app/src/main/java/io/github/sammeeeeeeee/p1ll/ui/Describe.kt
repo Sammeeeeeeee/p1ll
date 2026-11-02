@@ -1,7 +1,9 @@
 package io.github.sammeeeeeeee.p1ll.ui
 
 import android.content.Context
+import io.github.sammeeeeeeee.p1ll.data.DoseUnit
 import io.github.sammeeeeeeee.p1ll.data.Pill
+import io.github.sammeeeeeeee.p1ll.data.PillShape
 import io.github.sammeeeeeeee.p1ll.data.ScheduleType
 import java.time.DayOfWeek
 import java.time.ZonedDateTime
@@ -34,8 +36,39 @@ object Describe {
 
     fun meta(p: Pill): String {
         val daily = p.schedule == ScheduleType.DAILY || (p.schedule == ScheduleType.WEEKDAYS && p.weekdays == Pill.ALL_WEEK)
-        val pattern = if (daily) "" else schedule(p).replaceFirstChar { if (p.dosage.isBlank()) it else it.lowercaseChar() }
-        return listOf(p.dosage.trim(), pattern).filter { it.isNotEmpty() }.joinToString(", ")
+        // Day names keep their capital; "Every other day" and the like don't, mid-line.
+        val dayList = p.schedule == ScheduleType.WEEKDAYS && p.weekdays !in setOf(WEEKDAYS, WEEKEND)
+        val pattern = if (daily) "" else schedule(p).let { if (dayList) it else it.replaceFirstChar(Char::lowercaseChar) }
+        return listOf(amount(p.amount, p.unit, p.shape), p.strength.trim(), pattern).filter { it.isNotEmpty() }.joinToString(", ")
+    }
+
+    /** "1 pill", "7.5 ml", "2 puffs". */
+    fun amount(amount: Double, unit: DoseUnit, shape: PillShape): String = "${Fmt.amount(amount)} ${unit(unit, shape, amount)}"
+
+    fun unit(unit: DoseUnit, shape: PillShape, amount: Double = 2.0): String {
+        if (unit == DoseUnit.ML) return "ml"
+        val (one, many) = when (shape) {
+            PillShape.ROUND, PillShape.CAPSULE, PillShape.OVAL, PillShape.TABLET -> "pill" to "pills"
+            PillShape.DROP -> "drop" to "drops"
+            PillShape.SACHET -> "sachet" to "sachets"
+            PillShape.TUBE -> "application" to "applications"
+            PillShape.BOTTLE -> "dose" to "doses"
+            PillShape.SPRAY -> "spray" to "sprays"
+            PillShape.INHALER -> "puff" to "puffs"
+            PillShape.SYRINGE -> "injection" to "injections"
+            PillShape.PATCH -> "patch" to "patches"
+        }
+        return if (amount == 1.0) one else many
+    }
+
+    /** Supply in its unit: "12 pills", "97.5 ml". */
+    fun supply(p: Pill): String = amount(p.stock ?: 0.0, p.unit, p.shape)
+
+    /** Whole days the supply lasts on schedule; null for as-needed pills. */
+    fun daysOfSupply(p: Pill): Int? {
+        val stock = p.stock ?: return null
+        val perDay = p.times.size * p.amount
+        return if (p.asNeeded || perDay <= 0) null else (stock / perDay).toInt()
     }
 
     /** "today 14:00", "tomorrow 08:00", "Fri 08:00", "12 Nov 08:00". */

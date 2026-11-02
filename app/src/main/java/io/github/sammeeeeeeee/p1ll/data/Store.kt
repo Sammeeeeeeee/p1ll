@@ -48,7 +48,7 @@ class Store(private val context: Context, val db: P1llDb, val settings: Settings
     }
 
     suspend fun refill(pill: Pill, amount: Int) {
-        db.pills().setStock(pill.id, (pill.stock ?: 0) + amount)
+        db.pills().setStock(pill.id, (pill.stock ?: 0.0) + amount)
     }
 
     suspend fun take(slot: Slot): Long = setStatus(slot, DoseStatus.TAKEN)
@@ -141,7 +141,8 @@ class Store(private val context: Context, val db: P1llDb, val settings: Settings
     private suspend fun adjustStock(pillId: Long, direction: Int) {
         val pill = db.pills().get(pillId) ?: return
         val stock = pill.stock ?: return
-        val next = (stock + direction * pill.perDose).coerceAtLeast(0)
+        // Rounded to hundredths so doses like 1.2 ml don't leave 97.59999 behind.
+        val next = (Math.round((stock + direction * pill.amount) * 100) / 100.0).coerceAtLeast(0.0)
         db.pills().setStock(pillId, next)
         val threshold = pill.refillAt ?: return
         if (direction < 0 && stock > threshold && next <= threshold) {

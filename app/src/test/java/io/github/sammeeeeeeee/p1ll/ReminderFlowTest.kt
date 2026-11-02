@@ -66,7 +66,7 @@ class ReminderFlowTest {
         val db = app.container.db
         val created = now.minusDays(10).toInstant().toEpochMilli()
         val pillId = db.pills().insert(
-            Pill(name = "Sertraline", dosage = "50 mg", times = listOf(minute), startDay = today - 10, createdAt = created),
+            Pill(name = "Sertraline", strength = "50 mg", amount = 2.0, times = listOf(minute), startDay = today - 10, createdAt = created),
         )
         // A second dose due at the same time, so the snoozed one has company to be bundled with.
         db.pills().insert(Pill(name = "Psyllium husk", times = listOf(minute), startDay = today - 10, createdAt = created))
@@ -77,7 +77,7 @@ class ReminderFlowTest {
         Reminders.sync(app, now)
         assertEquals(2, notifications.allNotifications.size)
         val posted = shown("Sertraline")
-        assertEquals("50 mg, due ${Fmt.time(app, minute)}", posted.extras.getString(Notification.EXTRA_TEXT))
+        assertEquals("2 pills, 50 mg, due ${Fmt.time(app, minute)}", posted.extras.getString(Notification.EXTRA_TEXT))
         // It alerts, and stays (Clear all leaves it) until the dose is taken or snoozed.
         assertEquals(Notifications.CHANNEL_DOSES, posted.channelId)
         assertTrue(posted.flags and Notification.FLAG_ONGOING_EVENT != 0)
@@ -112,7 +112,7 @@ class ReminderFlowTest {
         assertNull(shown("Psyllium husk").group)
         assertEquals(Notifications.CHANNEL_DOSES, shown("Psyllium husk").channelId)
         // The same details as the reminder it replaces.
-        assertEquals("50 mg, due ${Fmt.time(app, minute)}", quiet.extras.getString(Notification.EXTRA_TEXT))
+        assertEquals("2 pills, 50 mg, due ${Fmt.time(app, minute)}", quiet.extras.getString(Notification.EXTRA_TEXT))
         assertNotNull(quiet.getLargeIcon())
         assertTrue(quiet.flags and Notification.FLAG_ONGOING_EVENT == 0)
         assertEquals(listOf(app.getString(R.string.notif_taken)), quiet.actions.map { it.title.toString() })

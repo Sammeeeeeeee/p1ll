@@ -41,7 +41,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.sammeeeeeeee.p1ll.data.DoseStatus
+import io.github.sammeeeeeeee.p1ll.data.DoseUnit
 import io.github.sammeeeeeeee.p1ll.data.Pill
+import io.github.sammeeeeeeee.p1ll.data.PillShape
 import io.github.sammeeeeeeee.p1ll.domain.buildCells
 import io.github.sammeeeeeeee.p1ll.domain.stats
 import io.github.sammeeeeeeee.p1ll.ui.CHART_DAYS
@@ -63,6 +65,7 @@ import io.github.sammeeeeeeee.p1ll.ui.nav.shared
 import io.github.sammeeeeeeee.p1ll.ui.theme.P1ll
 import io.github.sammeeeeeeee.p1ll.ui.theme.Type
 import io.github.sammeeeeeeee.p1ll.ui.theme.pillColor
+import kotlin.math.floor
 
 class DetailActions(
     val back: () -> Unit,
@@ -148,21 +151,21 @@ fun DetailScreen(pillId: Long, snapshot: Snapshot, actions: DetailActions) {
         AnimatedVisibility(stock != null) {
             Surface(Modifier.enter(4).padding(top = 12.dp), radius = 28.dp) {
                 Column(Modifier.padding(16.dp)) {
+                    val left = Math.round((stock ?: 0.0) * 100) / 100.0
                     Row(verticalAlignment = Alignment.Bottom) {
-                        RollingNumber(stock ?: 0, Type.number)
-                        Text(" left", style = Type.body, color = c.ink2, modifier = Modifier.padding(bottom = 2.dp))
+                        RollingNumber(floor(left).toInt(), Type.number)
+                        // A half pill or 2.5 ml left over shows after the rolling whole part.
+                        if (left != floor(left)) Text(Fmt.amount(left - floor(left)).removePrefix("0"), style = Type.number)
+                        Text(" ${Describe.unit(pill.unit, pill.shape, left)} left", style = Type.body, color = c.ink2, modifier = Modifier.padding(bottom = 2.dp))
                         Spacer(Modifier.weight(1f))
-                        val perDay = pill.times.size * pill.perDose
-                        if (!pill.asNeeded && perDay > 0 && stock != null) {
-                            val days = stock / perDay
-                            if (days > 0) Text(if (days == 1) "1 day" else "$days days", style = Type.label, color = c.ink2)
-                        }
+                        val days = Describe.daysOfSupply(pill)
+                        if (days != null && days > 0) Text(if (days == 1) "1 day" else "$days days", style = Type.label, color = c.ink2)
                     }
                     val refillAt = pill.refillAt
                     if (refillAt != null && stock != null) {
                         Spacer(Modifier.height(10.dp))
                         val fill by animateFloatAsState(
-                            (stock / (refillAt * 4f).coerceAtLeast(1f)).coerceIn(0f, 1f),
+                            (stock.toFloat() / (refillAt * 4f).coerceAtLeast(1f)).coerceIn(0f, 1f),
                             spring(0.8f, 200f),
                             label = "supply",
                         )
@@ -178,7 +181,7 @@ fun DetailScreen(pillId: Long, snapshot: Snapshot, actions: DetailActions) {
                     }
                     Spacer(Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(14, 28, 30, 90).forEach { n ->
+                        refills(pill).forEach { n ->
                             Chip("+$n", false, {
                                 feedback.saved()
                                 actions.refill(pill, n)
@@ -228,6 +231,13 @@ fun DetailScreen(pillId: Long, snapshot: Snapshot, actions: DetailActions) {
             dismissButton = { GhostButton("Cancel", { confirmDelete = false }) },
         )
     }
+}
+
+/** Common pack sizes: bottles in ml, inhalers and sprays in puffs, otherwise boxes. */
+private fun refills(pill: Pill) = when {
+    pill.unit == DoseUnit.ML -> listOf(100, 150, 200, 500)
+    pill.shape == PillShape.INHALER || pill.shape == PillShape.SPRAY -> listOf(60, 120, 200)
+    else -> listOf(14, 28, 30, 90)
 }
 
 @Composable

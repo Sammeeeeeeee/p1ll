@@ -108,7 +108,6 @@ import io.github.sammeeeeeeee.p1ll.ui.nav.morph
 import io.github.sammeeeeeeee.p1ll.ui.theme.Motion
 import io.github.sammeeeeeeee.p1ll.ui.theme.P1ll
 import io.github.sammeeeeeeee.p1ll.ui.theme.Type
-import io.github.sammeeeeeeee.p1ll.ui.theme.pillColor
 import io.github.sammeeeeeeee.p1ll.ui.AppViewModel
 import java.time.temporal.ChronoUnit
 
@@ -532,9 +531,7 @@ private fun DoneMark(modifier: Modifier) {
 private fun StatsRow(state: HomeState) {
     val countUp = rememberFirstTime("stats")
     Row(Modifier.fillMaxWidth()) {
-        val c = P1ll.colors
-        Stat(state.stats.streak, "day streak", Modifier.weight(1f), color = pillColor(0, c.dark), countUp = countUp)
-        state.stats.adherence?.let { Stat(it, "30 days", Modifier.weight(1f), suffix = "%", color = c.accent, countUp = countUp) }
+        state.stats.adherence?.let { Stat(it, "30 days", Modifier.weight(1f), suffix = "%", color = P1ll.colors.accent, countUp = countUp) }
     }
 }
 
