@@ -49,6 +49,10 @@ jobs:
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "p1ll-${VERSION_NAME}.apk" --clobber
+            # A create that failed midway leaves a draft behind; publish it.
+            if [[ "$(gh release view "$TAG" --json isDraft -q .isDraft)" == "true" ]]; then
+              gh release edit "$TAG" --draft=false
+            fi
           else
             # A tag with a suffix (v1.2.0-beta.1) is a pre-release, so it never becomes Latest.
             pre=""
