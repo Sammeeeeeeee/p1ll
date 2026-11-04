@@ -1,11 +1,15 @@
 package io.github.sammeeeeeeee.p1ll.ui
 
 import android.app.Application
+import android.net.Uri
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.sammeeeeeeee.p1ll.P1llApp
 import io.github.sammeeeeeeee.p1ll.data.Dose
 import io.github.sammeeeeeeee.p1ll.data.DoseStatus
+import io.github.sammeeeeeeee.p1ll.data.Export
+import io.github.sammeeeeeeee.p1ll.data.ExportFormat
 import io.github.sammeeeeeeee.p1ll.data.Pill
 import io.github.sammeeeeeeee.p1ll.data.Prefs
 import io.github.sammeeeeeeee.p1ll.domain.DayCell
@@ -34,6 +38,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.ZonedDateTime
 
 /** Everything the screens derive from: one consistent read of the database at one moment. */
@@ -228,6 +233,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun refill(pill: Pill, amount: Int) = viewModelScope.launch { store.refill(pill, amount) }
 
     fun updatePrefs(transform: (Prefs) -> Prefs) = viewModelScope.launch { store.updateSettings(transform) }
+
+    fun export(uri: Uri, format: ExportFormat) = viewModelScope.launch {
+        val app = getApplication<Application>()
+        val ok = withContext(Dispatchers.IO) {
+            runCatching {
+                val text = Export.render(format, store.db.pills().all(), store.db.doses().all())
+                app.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(text.toByteArray()) }
+            }.isSuccess
+        }
+        if (ok) container.feedback.saved() else Toast.makeText(app, "Export failed", Toast.LENGTH_SHORT).show()
+    }
 
     companion object {
         const val UNDO_MS = 4500L

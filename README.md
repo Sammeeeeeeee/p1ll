@@ -19,6 +19,7 @@ Pill tracker for Android. A year chart shows one square per day, split into one 
 - Swipe right to take, left to skip
 - Page back through earlier days with the arrows, a sideways swipe on the header, or a tap on the chart, and fill in what was missed
 - Backdate a pill and mark its past doses taken
+- Export the dose log as CSV, or every stored field as JSON (Settings)
 
 ## Build
 

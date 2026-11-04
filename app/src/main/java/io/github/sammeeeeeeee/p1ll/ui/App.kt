@@ -165,7 +165,7 @@ fun App(vm: AppViewModel) {
                             nav.pop()
                         },
                     )
-                    Screen.Settings -> SettingsScreen(prefs, nav::pop) { vm.updatePrefs(it) }
+                    Screen.Settings -> SettingsScreen(prefs, nav::pop, vm::export) { vm.updatePrefs(it) }
                 }
             }
             openDay?.let { open ->

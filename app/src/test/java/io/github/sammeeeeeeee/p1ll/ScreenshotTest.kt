@@ -133,6 +133,6 @@ class ScreenshotTest {
 
     @Test
     fun settings() = shot("settings-dark", dark = true) {
-        SettingsScreen(Prefs(theme = ThemeMode.DARK), {}, {})
+        SettingsScreen(Prefs(theme = ThemeMode.DARK), {}, { _, _ -> }, {})
     }
 }

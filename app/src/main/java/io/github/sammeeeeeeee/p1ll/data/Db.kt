@@ -41,6 +41,9 @@ interface DoseDao {
     @Query("SELECT * FROM doses ORDER BY day, minute")
     fun observeAll(): Flow<List<Dose>>
 
+    @Query("SELECT * FROM doses ORDER BY day, minute")
+    suspend fun all(): List<Dose>
+
     @Query("SELECT * FROM doses WHERE day BETWEEN :from AND :to")
     suspend fun between(from: Long, to: Long): List<Dose>
 
