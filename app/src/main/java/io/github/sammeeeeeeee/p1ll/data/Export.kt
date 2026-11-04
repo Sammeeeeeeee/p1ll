@@ -21,7 +21,7 @@ object Export {
             ExportFormat.JSON -> json(pills, doses)
         }
 
-    /** One row per logged dose, with its pill's name and dosage, in local time. */
+    /** One row per logged dose, with its pill's name and strength, in local time. */
     fun csv(pills: List<Pill>, doses: List<Dose>, zone: ZoneId): String {
         val byId = pills.associateBy { it.id }
         val rows = doses.sortedWith(compareBy({ it.day }, { it.minute })).map { d ->
@@ -30,12 +30,12 @@ object Export {
                 LocalDate.ofEpochDay(d.day).toString(),
                 "%02d:%02d".format(Locale.ROOT, d.minute / 60, d.minute % 60),
                 pill?.name.orEmpty(),
-                pill?.dosage.orEmpty(),
+                pill?.strength.orEmpty(),
                 d.status.name.lowercase(),
                 Instant.ofEpochMilli(d.at).atZone(zone).toOffsetDateTime().toString(),
             )
         }
-        return (listOf(listOf("date", "time", "pill", "dosage", "status", "logged_at")) + rows)
+        return (listOf(listOf("date", "time", "pill", "strength", "status", "logged_at")) + rows)
             .joinToString("\r\n", postfix = "\r\n") { row -> row.joinToString(",", transform = ::cell) }
     }
 
@@ -49,7 +49,7 @@ object Export {
     private fun Pill.toJson() = JSONObject()
         .put("id", id)
         .put("name", name)
-        .put("dosage", dosage)
+        .put("strength", strength)
         .put("color", color)
         .put("shape", shape.name)
         .put("schedule", schedule.name)
@@ -61,7 +61,8 @@ object Export {
         .put("optional", optional)
         .put("notes", notes)
         .put("stock", stock ?: JSONObject.NULL)
-        .put("perDose", perDose)
+        .put("amount", amount)
+        .put("unit", unit.name)
         .put("refillAt", refillAt ?: JSONObject.NULL)
         .put("createdAt", createdAt)
 
