@@ -6,14 +6,10 @@
     <string name="channel_supply">Running low</string>
     <string name="notif_taken">Take</string>
     <string name="notif_snooze">Snooze</string>
-    <string name="notif_due">Due %1$s</string>
     <string name="notif_dose_due">%1$s, due %2$s</string>
     <string name="notif_low_title">Running low on %1$s</string>
     <string name="notif_low_text">%1$s, %2$s</string>
-    <plurals name="left">
-        <item quantity="one">%d left</item>
-        <item quantity="other">%d left</item>
-    </plurals>
+    <string name="left">%1$s left</string>
     <plurals name="days">
         <item quantity="one">%d day</item>
         <item quantity="other">%d days</item>

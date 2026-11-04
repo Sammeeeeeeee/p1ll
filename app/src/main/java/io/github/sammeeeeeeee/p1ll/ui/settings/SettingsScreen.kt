@@ -44,6 +44,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.github.sammeeeeeeee.p1ll.BuildConfig
+import io.github.sammeeeeeeee.p1ll.data.Export
+import io.github.sammeeeeeeee.p1ll.data.ExportFormat
 import io.github.sammeeeeeeee.p1ll.data.Prefs
 import io.github.sammeeeeeeee.p1ll.data.ThemeMode
 import io.github.sammeeeeeeee.p1ll.domain.DayCell
@@ -68,7 +70,12 @@ import io.github.sammeeeeeeee.p1ll.ui.theme.Type
 import java.time.LocalDate
 
 @Composable
-fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs) -> Unit) {
+fun SettingsScreen(
+    prefs: Prefs,
+    onBack: () -> Unit,
+    onExport: (Uri, ExportFormat) -> Unit,
+    onChange: ((Prefs) -> Prefs) -> Unit,
+) {
     val c = P1ll.colors
     val context = LocalContext.current
     val feedback = LocalFeedback.current
@@ -85,6 +92,12 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
     val health = remember(resumes) { Notifications.health(context) }
     val exactOk = remember(resumes) { Reminders.canExact(context) }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { resumes++ }
+    val exportCsv = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ExportFormat.CSV.mime)) { uri ->
+        uri?.let { onExport(it, ExportFormat.CSV) }
+    }
+    val exportJson = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(ExportFormat.JSON.mime)) { uri ->
+        uri?.let { onExport(it, ExportFormat.JSON) }
+    }
 
     Column(
         Modifier
@@ -198,6 +211,16 @@ fun SettingsScreen(prefs: Prefs, onBack: () -> Unit, onChange: ((Prefs) -> Prefs
 
         Spacer(Modifier.height(12.dp))
         Surface(Modifier.enter(4)) {
+            SettingRow("Export") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GhostButton("CSV", { exportCsv.launch(Export.fileName(ExportFormat.CSV)) })
+                    GhostButton("JSON", { exportJson.launch(Export.fileName(ExportFormat.JSON)) })
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Surface(Modifier.enter(5)) {
             SettingRow("Version") { Text(BuildConfig.VERSION_NAME, style = Type.label, color = c.ink2) }
             Divider()
             Box(
