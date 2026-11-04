@@ -79,6 +79,7 @@ import io.github.sammeeeeeeee.p1ll.domain.Slot
 import io.github.sammeeeeeeee.p1ll.domain.SlotStatus
 import io.github.sammeeeeeeee.p1ll.ui.Describe
 import io.github.sammeeeeeeee.p1ll.ui.Fmt
+import io.github.sammeeeeeeee.p1ll.ui.components.DoseMark
 import io.github.sammeeeeeeee.p1ll.ui.components.Icons
 import io.github.sammeeeeeeee.p1ll.ui.components.PillGlyph
 import io.github.sammeeeeeeee.p1ll.ui.components.tappable
@@ -191,10 +192,11 @@ fun DoseRowView(
     )
     val glyphAlpha by animateFloatAsState(if (done) 0.5f else 1f, tween(300), label = "glyphAlpha")
 
+    // Any dose can be swiped to the other state, so a wrong tick (or a filled-in past) can be put right.
     SwipeRow(
         color = color,
-        onTake = if (slot.status == SlotStatus.PENDING) ({ onTake(slot) }) else null,
-        onSkip = if (slot.status == SlotStatus.PENDING) ({ onSkip(slot) }) else null,
+        onTake = if (slot.status != SlotStatus.TAKEN) ({ onTake(slot) }) else null,
+        onSkip = if (slot.status != SlotStatus.SKIPPED) ({ onSkip(slot) }) else null,
         modifier = modifier,
     ) {
         val band = wash(color, c.dark, c.surface)
@@ -259,6 +261,14 @@ fun DoseRowView(
                 }
             }
             Spacer(Modifier.width(8.dp))
+            DoseMark(
+                pill.amount,
+                pill.unit,
+                pill.shape,
+                color,
+                Modifier.padding(top = 13.dp, bottom = 12.dp).graphicsLayer { alpha = glyphAlpha },
+                strength = pill.strength,
+            )
             Box(Modifier.heightIn(min = 46.dp).padding(top = 5.dp), contentAlignment = Alignment.TopEnd) {
                 val trailing: Trailing? = when {
                     due -> Trailing.Take
@@ -278,11 +288,14 @@ fun DoseRowView(
                     contentAlignment = Alignment.CenterEnd,
                     label = "trailing",
                 ) { t ->
-                    when (t) {
-                        Trailing.Take -> ActionChip("Take", Icons.Check, color, onColor(color)) { onTake(slot) }
-                        Trailing.Fill -> ActionChip("Taken", Icons.Check, c.raised, c.ink) { onTake(slot) }
-                        is Trailing.Text -> Text(t.text, style = Type.small, color = c.ink3, modifier = Modifier.padding(top = 11.dp))
-                        null -> Unit
+                    // The gap after the dose mark comes and goes with the action, so the mark slides rather than jumps.
+                    Box(if (t != null) Modifier.padding(start = 10.dp) else Modifier) {
+                        when (t) {
+                            Trailing.Take -> ActionChip("Take", Icons.Check, color, onColor(color)) { onTake(slot) }
+                            Trailing.Fill -> ActionChip("Taken", Icons.Check, c.raised, c.ink) { onTake(slot) }
+                            is Trailing.Text -> Text(t.text, style = Type.small, color = c.ink3, modifier = Modifier.padding(top = 11.dp))
+                            null -> Unit
+                        }
                     }
                 }
             }
@@ -303,10 +316,9 @@ private sealed interface Trailing {
 @Composable
 private fun meta(pill: Pill, showStock: Boolean): String {
     val parts = mutableListOf<String>()
-    if (pill.dosage.isNotBlank()) parts += pill.dosage.trim()
     if (pill.optional) parts += "optional"
     val stock = pill.stock
-    if (showStock && stock != null && pill.refillAt != null && stock <= pill.refillAt) parts += "$stock left"
+    if (showStock && stock != null && pill.refillAt != null && stock <= pill.refillAt) parts += "${Fmt.amount(stock)} left"
     return parts.joinToString(", ")
 }
 
@@ -502,13 +514,12 @@ fun QuietRow(
                         card.takenToday == 1 -> "taken $last"
                         else -> "${card.takenToday} taken, last $last"
                     }
-                    listOfNotNull(pill.dosage.takeIf { it.isNotBlank() }, taken).joinToString(", ")
+                    taken.orEmpty()
                 }
                 onLog != null -> {
                     val last = card.lastTakenAt
                     val lastText = last?.let { "taken ${Fmt.ago((now.toInstant().toEpochMilli() - it) / 60_000)}" }
-                    listOfNotNull(pill.dosage.takeIf { it.isNotBlank() }, lastText, if (card.takenToday > 1) "${card.takenToday} today" else null)
-                        .joinToString(", ")
+                    listOfNotNull(lastText, if (card.takenToday > 1) "${card.takenToday} today" else null).joinToString(", ")
                 }
                 else -> card.next?.let { Describe.whenNext(context, it, now).replaceFirstChar(Char::titlecase) } ?: Describe.schedule(pill)
             }
@@ -516,6 +527,8 @@ fun QuietRow(
         }
         if (onLog != null) {
             Spacer(Modifier.width(8.dp))
+            DoseMark(pill.amount, pill.unit, pill.shape, color, strength = pill.strength)
+            Spacer(Modifier.width(10.dp))
             var logged by remember { mutableIntStateOf(0) }
             LaunchedEffect(logged) {
                 if (logged > 0) {

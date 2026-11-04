@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.sammeeeeeeee.p1ll.data.Dose
 import io.github.sammeeeeeeee.p1ll.data.DoseStatus
+import io.github.sammeeeeeeee.p1ll.data.DoseUnit
 import io.github.sammeeeeeeee.p1ll.data.Pill
 import io.github.sammeeeeeeee.p1ll.data.PillShape
 import io.github.sammeeeeeeee.p1ll.data.Prefs
@@ -51,11 +52,12 @@ class ScreenshotTest {
         val created = now.minusDays(400).toInstant().toEpochMilli()
         val pills = listOf(
             Pill(1, "Sertraline", "50 mg", color = 5, shape = PillShape.OVAL, times = listOf(480, 1200), startDay = today - 300, createdAt = created),
-            Pill(2, "Metformin", "500 mg", color = 4, shape = PillShape.CAPSULE, times = listOf(480, 780, 1140), startDay = today - 120, stock = 6, refillAt = 10, createdAt = created),
-            Pill(3, "Vitamin D", "1000 IU", color = 2, shape = PillShape.ROUND, times = listOf(540), optional = true, startDay = today - 300, createdAt = created),
-            Pill(4, "Ibuprofen", "200 mg", color = 0, shape = PillShape.TABLET, schedule = ScheduleType.AS_NEEDED, times = emptyList(), startDay = today - 300, createdAt = created),
-            Pill(5, "Amoxicillin", "250 mg", color = 3, shape = PillShape.CAPSULE, times = listOf(480, 1320), startDay = today - 3, endDay = today + 4, createdAt = created),
+            Pill(2, "Metformin", "500 mg", color = 4, shape = PillShape.CAPSULE, times = listOf(480, 780, 1140), startDay = today - 120, stock = 6.0, amount = 2.0, refillAt = 10, createdAt = created),
+            Pill(3, "Vitamin D", "1000 IU", color = 2, shape = PillShape.DROP, times = listOf(540), optional = true, startDay = today - 300, amount = 3.0, createdAt = created),
+            Pill(4, "Ibuprofen", "200 mg", color = 0, shape = PillShape.TABLET, schedule = ScheduleType.AS_NEEDED, times = emptyList(), startDay = today - 300, amount = 2.0, createdAt = created),
+            Pill(5, "Amoxicillin", "250 mg/5 ml", color = 3, shape = PillShape.BOTTLE, times = listOf(480, 1320), startDay = today - 3, endDay = today + 4, amount = 7.5, unit = DoseUnit.ML, createdAt = created),
             Pill(6, "Iron", "", color = 7, shape = PillShape.DROP, schedule = ScheduleType.WEEKDAYS, weekdays = 0b0101010, times = listOf(600), startDay = today - 60, createdAt = created),
+            Pill(7, "Psyllium husk", "", color = 2, shape = PillShape.SACHET, schedule = ScheduleType.AS_NEEDED, times = emptyList(), startDay = today - 30, amount = 5.0, unit = DoseUnit.G, createdAt = created),
         )
         val random = Random(4)
         var id = 1L
@@ -79,7 +81,7 @@ class ScreenshotTest {
         return Snapshot(pills, doses, indexDoses(doses), now, loaded = true)
     }
 
-    private val noHome = HomeActions({ _, _ -> }, { _, _ -> }, {}, {}, {}, {}, {}, {}, { _, _ -> }, {})
+    private val noHome = HomeActions({ _, _ -> }, { _, _ -> }, {}, {}, {}, {}, {}, {}, {}, { _, _ -> }, {})
 
     private fun shot(name: String, dark: Boolean = false, content: @Composable () -> Unit) {
         compose.mainClock.autoAdvance = false

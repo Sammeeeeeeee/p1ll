@@ -28,10 +28,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Dp
@@ -139,6 +141,16 @@ fun NavHost(navigator: Navigator = rememberNavigator(), content: @Composable (Sc
     val transition = rememberTransition(state, label = "nav")
     val scope = rememberCoroutineScope()
 
+    // A screen keeps its scroll position while another sits on top of it, and starts fresh once popped.
+    val saved = rememberSaveableStateHolder()
+    val onStack = stack.mapTo(mutableSetOf()) { it.toString() }
+    val kept = remember { mutableSetOf<String>() }
+    SideEffect {
+        (kept - onStack).forEach(saved::removeState)
+        kept.clear()
+        kept.addAll(onStack)
+    }
+
     PredictiveBackHandler(enabled = stack.size > 1) { events ->
         val target = stack[stack.size - 2]
         try {
@@ -160,7 +172,9 @@ fun NavHost(navigator: Navigator = rememberNavigator(), content: @Composable (Sc
                 LocalShared provides this@SharedTransitionLayout,
                 LocalNavScope provides this@AnimatedContent,
             ) {
-                Box(Modifier.fillMaxSize()) { content(screen, navigator) }
+                saved.SaveableStateProvider(screen.toString()) {
+                    Box(Modifier.fillMaxSize()) { content(screen, navigator) }
+                }
             }
         }
     }
