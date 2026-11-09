@@ -115,7 +115,7 @@ class ReminderFlowTest {
         assertEquals("2 pills, 50 mg, due ${Fmt.time(app, minute)}", quiet.extras.getString(Notification.EXTRA_TEXT))
         assertNotNull(quiet.getLargeIcon())
         assertTrue(quiet.flags and Notification.FLAG_ONGOING_EVENT == 0)
-        assertEquals(listOf(app.getString(R.string.notif_taken)), quiet.actions.map { it.title.toString() })
+        assertEquals(listOf(app.getString(R.string.notif_taken), app.getString(R.string.notif_remind)), quiet.actions.map { it.title.toString() })
 
         // Nothing comes back for it: the next alarm is tomorrow's dose, and an hour on it's still the one quiet notification.
         val tomorrow = slot.plusDays(1).toInstant().toEpochMilli()
@@ -126,5 +126,56 @@ class ReminderFlowTest {
         // Taking the dose clears the snoozed copy too.
         Notifications.cancel(app, pillId, minute)
         assertEquals(listOf("Psyllium husk"), notifications.allNotifications.map { it.title })
+    }
+
+    @Test
+    fun remindMeHidesTheReminderUntilItsTime() = runBlocking {
+        shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val now = ZonedDateTime.now(zone)
+        val today = now.toLocalDate().toEpochDay()
+        val minute = (now.hour * 60 + now.minute - 1).coerceAtLeast(0)
+        val pillId = app.container.db.pills().insert(
+            Pill(name = "Sertraline", times = listOf(minute), startDay = today - 10, createdAt = now.minusDays(10).toInstant().toEpochMilli()),
+        )
+        val slot = now.withHour(minute / 60).withMinute(minute % 60).withSecond(0).withNano(0)
+        Reminders.sync(app, slot.minusMinutes(1))
+        Reminders.sync(app, now)
+        val posted = shown("Sertraline")
+        assertEquals(
+            listOf(R.string.notif_taken, R.string.notif_snooze, R.string.notif_remind).map(app::getString),
+            posted.actions.map { it.title.toString() },
+        )
+
+        // Remind me opens the sheet that asks when, for this dose.
+        val remind = shadowOf(posted.actions.first { it.title == app.getString(R.string.notif_remind) }.actionIntent)
+        assertTrue(remind.isActivity)
+        assertEquals(RemindActivity::class.java.name, remind.savedIntent.component?.className)
+        assertEquals(pillId, remind.savedIntent.getLongExtra(ActionReceiver.EXTRA_PILL, -1))
+        assertEquals(today, remind.savedIntent.getLongExtra(ActionReceiver.EXTRA_DAY, -1))
+        assertEquals(minute, remind.savedIntent.getIntExtra(ActionReceiver.EXTRA_MINUTE, -1))
+
+        // Picking a time clears the reminder and arms the alarm for then.
+        val back = now.plusHours(1)
+        app.container.store.remindAt(pillId, today, minute, back.toInstant().toEpochMilli())
+        assertTrue(notifications.allNotifications.isEmpty())
+        assertEquals(back.toInstant().toEpochMilli(), alarms.peekNextScheduledAlarm()?.triggerAtMs)
+
+        // Nothing before then.
+        Reminders.sync(app, now.plusMinutes(30))
+        assertTrue(notifications.allNotifications.isEmpty())
+
+        // Then it alerts again, as if just due.
+        Reminders.sync(app, back)
+        val again = shown("Sertraline")
+        assertEquals(Notifications.CHANNEL_DOSES, again.channelId)
+        assertTrue(again.flags and Notification.FLAG_ONGOING_EVENT != 0)
+        assertEquals(back.toInstant().toEpochMilli(), again.`when`)
+
+        // A dose taken in the meantime doesn't come back.
+        val later = back.plusHours(2)
+        app.container.store.remindAt(pillId, today, minute, later.toInstant().toEpochMilli())
+        app.container.store.takeAt(pillId, today, minute)
+        Reminders.sync(app, later)
+        assertTrue(notifications.allNotifications.isEmpty())
     }
 }

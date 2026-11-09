@@ -33,6 +33,14 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".RemindActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.P1ll.Sheet" />
+
         <receiver
             android:name=".reminders.AlarmReceiver"
             android:exported="false" />

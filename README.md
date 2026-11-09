@@ -13,7 +13,7 @@ Pill tracker for Android. A year chart shows one square per day, split into one 
 - Schedules for every day, chosen weekdays, every N days, or as needed
 - Pills, powders, creams, liquids, sprays, inhalers, injections and patches, in 12 colours
 - Each dose as a count (half pills too), ml or g, drawn on the right of its row with the strength: two pills, three drops, 7.5 ml, 5 g
-- One reminder per dose that stays until you act on it: Take opens the app and ticks the dose off, Snooze turns it into a minimized silent copy, same details, that won't alert again
+- One reminder per dose that stays until you act on it: Take opens the app and ticks the dose off, Snooze turns it into a minimized silent copy, same details, that won't alert again, and Remind me hides it until a time you pick (+15 min to +4 h, or any time) and then alerts again
 - Optional repeats until a dose is taken or snoozed
 - End dates, with history kept
 - Optional pills, never counted as missed
