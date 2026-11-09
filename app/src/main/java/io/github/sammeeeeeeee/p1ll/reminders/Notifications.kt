@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import io.github.sammeeeeeeee.p1ll.MainActivity
 import io.github.sammeeeeeeee.p1ll.R
+import io.github.sammeeeeeeee.p1ll.RemindActivity
 import io.github.sammeeeeeeee.p1ll.data.Pill
 import io.github.sammeeeeeeee.p1ll.domain.slotTime
 import io.github.sammeeeeeeee.p1ll.ui.Describe
@@ -100,9 +101,10 @@ object Notifications {
 
     /**
      * One reminder per dose. It alerts once and stays (out of reach of Clear all) until the dose is
-     * taken or snoozed. [quiet] is the snoozed form: a minimized silent copy with the same details,
-     * and only Take left. [repostedAt] marks a "remind again" repeat: any copy still showing is replaced
-     * by a fresh post stamped at that time, so Android treats it as a new alert, not a quiet update.
+     * taken, snoozed or put off with Remind me. [quiet] is the snoozed form: a minimized silent copy
+     * with the same details, and no Snooze. [repostedAt] marks a repeat or a Remind me coming due: any
+     * copy still showing is replaced by a fresh post stamped at that time, so Android treats it as a
+     * new alert, not a quiet update.
      */
     fun dose(context: Context, pill: Pill, day: Long, minute: Int, repostedAt: Long? = null, quiet: Boolean = false) {
         if (!allowed(context)) return
@@ -117,7 +119,8 @@ object Notifications {
             .putExtra(ActionReceiver.EXTRA_DAY, day)
             .putExtra(ActionReceiver.EXTRA_MINUTE, minute)
 
-        // Take opens the app, which records the dose in front of you; Snooze works in the background.
+        // Take opens the app, which records the dose in front of you; Snooze works in the background;
+        // Remind me opens a sheet over whatever is on screen to ask when.
         val take = PendingIntent.getActivity(
             context,
             id,
@@ -153,6 +156,15 @@ object Notifications {
             )
             builder.addAction(R.drawable.ic_notif_snooze, context.getString(R.string.notif_snooze), snooze)
         }
+        val remind = PendingIntent.getActivity(
+            context,
+            id,
+            Intent(context, RemindActivity::class.java)
+                .dose()
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        builder.addAction(R.drawable.ic_notif_bell, context.getString(R.string.notif_remind), remind)
         val notification = builder.build()
         val manager = NotificationManagerCompat.from(context)
         if (quiet) {

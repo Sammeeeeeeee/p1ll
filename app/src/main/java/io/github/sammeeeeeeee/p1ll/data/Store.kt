@@ -104,6 +104,15 @@ class Store(private val context: Context, val db: P1llDb, val settings: Settings
         Reminders.snooze(context, pillId, day, minute)
     }
 
+    /** Clears the reminder until [at] (epoch millis), when it alerts again; or for good if the dose has been dealt with. */
+    suspend fun remindAt(pillId: Long, day: Long, minute: Int, at: Long) {
+        if (resolve(pillId, day, minute)?.status != SlotStatus.PENDING) {
+            Notifications.cancel(context, pillId, minute)
+            return
+        }
+        Reminders.remindAt(context, pillId, day, minute, at)
+    }
+
     suspend fun updateSettings(transform: (Prefs) -> Prefs) {
         settings.update(transform)
         Reminders.sync(context)

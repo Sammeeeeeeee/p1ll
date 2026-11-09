@@ -29,7 +29,7 @@ object Reminders {
     private const val CATCH_UP_MS = 3 * 60 * 60 * 1000L
     private val lock = Mutex()
 
-    /** A "remind again" repeat waiting to go off. */
+    /** A reminder waiting to come back: a "remind again" repeat, or a Remind me ([attempt] 0). */
     private data class FollowUp(
         val pillId: Long,
         val day: Long,
@@ -37,6 +37,8 @@ object Reminders {
         val dueAt: Long,
         val attempt: Int,
     ) {
+        fun same(pillId: Long, day: Long, minute: Int) = this.pillId == pillId && this.day == day && this.minute == minute
+
         fun encode() = "$pillId|$day|$minute|$dueAt|$attempt"
 
         companion object {
@@ -52,15 +54,24 @@ object Reminders {
     /** Snooze turns the reminder silent: it stays in the shade under Silent and never alerts again. */
     suspend fun snooze(context: Context, pillId: Long, day: Long, minute: Int) {
         val container = (context.applicationContext as P1llApp).container
-        lock.withLock {
-            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            val follow = readFollowUps(prefs).filterNot { it.pillId == pillId && it.day == day && it.minute == minute }
-            prefs.edit { putStringSet("follow", follow.map { it.encode() }.toSet()) }
-        }
+        replaceFollowUp(context, pillId, day, minute, null)
         val pill = container.db.pills().get(pillId)
         if (pill != null) Notifications.dose(context, pill, day, minute, quiet = true)
         else Notifications.cancel(context, pillId, minute)
         sync(context)
+    }
+
+    /** Remind me: the reminder goes away until [at], then alerts again as if just due. */
+    suspend fun remindAt(context: Context, pillId: Long, day: Long, minute: Int, at: Long) {
+        replaceFollowUp(context, pillId, day, minute, FollowUp(pillId, day, minute, at, attempt = 0))
+        Notifications.cancel(context, pillId, minute)
+        sync(context)
+    }
+
+    private suspend fun replaceFollowUp(context: Context, pillId: Long, day: Long, minute: Int, with: FollowUp?) = lock.withLock {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val follow = readFollowUps(prefs).filterNot { it.same(pillId, day, minute) } + listOfNotNull(with)
+        prefs.edit { putStringSet("follow", follow.map { it.encode() }.toSet()) }
     }
 
     /** Posts anything that has come due, then arms one alarm for whatever is next. Safe to call any time. */
@@ -74,10 +85,12 @@ object Reminders {
         val nag = settings.nagMinutes * 60_000L
 
         val pills = container.db.pills().all()
-        val index = indexDoses(container.db.doses().between(today - 1, today + 1))
+        val follow = readFollowUps(prefs).toMutableList()
+        // A Remind me can be set on a reminder left showing for days, so its dose's day is read too.
+        val from = minOf(today - 1, follow.minOfOrNull { it.day } ?: today)
+        val index = indexDoses(container.db.doses().between(from, today + 1))
         val since = maxOf(prefs.getLong("lastRun", nowMs), nowMs - CATCH_UP_MS)
         val notified = prefs.getStringSet("notified", emptySet())!!.toMutableSet()
-        val follow = readFollowUps(prefs).toMutableList()
 
         fun pending(pillId: Long, day: Long, minute: Int): Boolean {
             val pill = pills.find { it.id == pillId } ?: return false
@@ -103,7 +116,8 @@ object Reminders {
                 follow += f.copy(dueAt = nowMs + nag, attempt = f.attempt + 1)
             }
         }
-        follow.removeAll { it.day < today - 1 || !pending(it.pillId, it.day, it.minute) }
+        // Repeats end the day after their dose; a Remind me waits for its time.
+        follow.removeAll { (it.attempt > 0 && it.day < today - 1) || !pending(it.pillId, it.day, it.minute) }
         notified.removeAll { (it.substringBefore('|').toLongOrNull() ?: 0) < today - 1 }
 
         var next = follow.minOfOrNull { it.dueAt }
