@@ -67,7 +67,7 @@ fun App(vm: AppViewModel) {
         vm.take(slot, "${pill.name} taken")
     }
 
-    // Take on a reminder: come home to the dose's day, let the screen settle, then take it in view.
+    // Take on a reminder posted before TakeActivity: come home to the dose's day, let the screen settle, then take it in view.
     // Requests queue, so a second Take tapped meanwhile waits its turn; the reminder itself stays
     // up until the dose is stored, which is what clears it.
     val reminderTakes by vm.reminderTakes.collectAsStateWithLifecycle()

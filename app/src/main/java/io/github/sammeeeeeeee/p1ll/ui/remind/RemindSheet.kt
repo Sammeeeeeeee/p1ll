@@ -2,7 +2,6 @@ package io.github.sammeeeeeeee.p1ll.ui.remind
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,18 +11,13 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,7 +35,6 @@ import io.github.sammeeeeeeee.p1ll.ui.feedback.LocalFeedback
 import io.github.sammeeeeeeee.p1ll.ui.theme.P1ll
 import io.github.sammeeeeeeee.p1ll.ui.theme.Type
 import io.github.sammeeeeeeee.p1ll.ui.theme.pillColor
-import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 
 /** Remind me's presets, in minutes from now. */
@@ -56,24 +49,12 @@ fun nextAt(now: ZonedDateTime, minute: Int): ZonedDateTime {
 }
 
 /** Remind me on a reminder: when it should come back. [onDismiss] runs once the sheet has slid away, picked or not. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemindSheet(pill: Pill, minute: Int, now: () -> ZonedDateTime, onPick: (ZonedDateTime) -> Unit, onDismiss: () -> Unit) {
-    val c = P1ll.colors
-    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheet,
-        containerColor = c.surface,
-        contentColor = c.ink,
-        dragHandle = {
-            Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(36.dp, 4.dp).clip(CircleShape).background(c.line))
-        },
-    ) {
+    ReminderSheet(onDismiss) { close ->
         RemindOptions(pill, minute, now, onPick = { at ->
             onPick(at)
-            scope.launch { sheet.hide() }.invokeOnCompletion { onDismiss() }
+            close()
         })
     }
 }

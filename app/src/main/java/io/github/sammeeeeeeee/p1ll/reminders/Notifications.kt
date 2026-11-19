@@ -27,6 +27,7 @@ import androidx.core.content.edit
 import io.github.sammeeeeeeee.p1ll.MainActivity
 import io.github.sammeeeeeeee.p1ll.R
 import io.github.sammeeeeeeee.p1ll.RemindActivity
+import io.github.sammeeeeeeee.p1ll.TakeActivity
 import io.github.sammeeeeeeee.p1ll.data.Pill
 import io.github.sammeeeeeeee.p1ll.domain.slotTime
 import io.github.sammeeeeeeee.p1ll.ui.Describe
@@ -104,9 +105,18 @@ object Notifications {
      * taken, snoozed or put off with Remind me. [quiet] is the snoozed form: a minimized silent copy
      * with the same details, and no Snooze. [repostedAt] marks a repeat or a Remind me coming due: any
      * copy still showing is replaced by a fresh post stamped at that time, so Android treats it as a
-     * new alert, not a quiet update.
+     * new alert, not a quiet update. [silent] puts the reminder back without sound or vibration, after
+     * an Undo on Take's sheet.
      */
-    fun dose(context: Context, pill: Pill, day: Long, minute: Int, repostedAt: Long? = null, quiet: Boolean = false) {
+    fun dose(
+        context: Context,
+        pill: Pill,
+        day: Long,
+        minute: Int,
+        repostedAt: Long? = null,
+        quiet: Boolean = false,
+        silent: Boolean = false,
+    ) {
         if (!allowed(context)) return
         val id = id(pill.id, minute)
         val due = Fmt.time(context, minute)
@@ -119,16 +129,11 @@ object Notifications {
             .putExtra(ActionReceiver.EXTRA_DAY, day)
             .putExtra(ActionReceiver.EXTRA_MINUTE, minute)
 
-        // Take opens the app, which records the dose in front of you; Snooze works in the background;
-        // Remind me opens a sheet over whatever is on screen to ask when.
-        val take = PendingIntent.getActivity(
+        // Take and Remind me open a sheet over whatever is on screen; Snooze works in the background.
+        fun sheet(activity: Class<*>) = PendingIntent.getActivity(
             context,
             id,
-            Intent(context, MainActivity::class.java)
-                .setAction(MainActivity.ACTION_TAKE)
-                .dose()
-                .putExtra(EXTRA_TOKEN, token(context))
-                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            Intent(context, activity).dose().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val builder = NotificationCompat.Builder(context, if (quiet) CHANNEL_QUIET else CHANNEL_DOSES)
@@ -144,7 +149,8 @@ object Notifications {
             .setOngoing(!quiet)
             .setOnlyAlertOnce(quiet)
             .setContentIntent(openApp(context, id))
-            .addAction(R.drawable.ic_notif_check, context.getString(R.string.notif_taken), take)
+            .setSilent(silent)
+            .addAction(R.drawable.ic_notif_check, context.getString(R.string.notif_taken), sheet(TakeActivity::class.java))
         if (quiet) {
             builder.setGroup(GROUP_SNOOZED)
         } else {
@@ -156,15 +162,7 @@ object Notifications {
             )
             builder.addAction(R.drawable.ic_notif_snooze, context.getString(R.string.notif_snooze), snooze)
         }
-        val remind = PendingIntent.getActivity(
-            context,
-            id,
-            Intent(context, RemindActivity::class.java)
-                .dose()
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        builder.addAction(R.drawable.ic_notif_bell, context.getString(R.string.notif_remind), remind)
+        builder.addAction(R.drawable.ic_notif_bell, context.getString(R.string.notif_remind), sheet(RemindActivity::class.java))
         val notification = builder.build()
         val manager = NotificationManagerCompat.from(context)
         if (quiet) {
@@ -185,7 +183,10 @@ object Notifications {
 
     private const val EXTRA_TOKEN = "token"
 
-    /** A random value only this install knows, so another app can't send MainActivity a Take. */
+    /**
+     * A random value only this install knows, so another app can't send MainActivity a Take. Reminders
+     * now take through [TakeActivity]; this still checks ones posted before that.
+     */
     private fun token(context: Context): String {
         val prefs = context.getSharedPreferences("reminders", Context.MODE_PRIVATE)
         return prefs.getString("takeToken", null) ?: UUID.randomUUID().toString().also {

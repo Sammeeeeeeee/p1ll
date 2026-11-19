@@ -61,8 +61,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Take on a reminder: the home screen records the dose in view. This activity is exported (it's
-     * the launcher), so only intents carrying the reminder's private token count.
+     * Take on a reminder posted before Take got its own sheet ([TakeActivity]): the home screen records
+     * the dose in view. This activity is exported (it's the launcher), so only intents carrying the
+     * reminder's private token count.
      */
     private fun handle(intent: Intent?) {
         if (intent?.action != ACTION_TAKE || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return

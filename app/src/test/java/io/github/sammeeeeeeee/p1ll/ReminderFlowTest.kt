@@ -16,7 +16,6 @@ import io.github.sammeeeeeeee.p1ll.reminders.Reminders
 import io.github.sammeeeeeeee.p1ll.ui.Fmt
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -82,14 +81,12 @@ class ReminderFlowTest {
         assertEquals(Notifications.CHANNEL_DOSES, posted.channelId)
         assertTrue(posted.flags and Notification.FLAG_ONGOING_EVENT != 0)
 
-        // Take opens the app (which records the dose in view) instead of acting in the background.
+        // Take opens its sheet over whatever is on screen, for this dose (see TakeTest).
         val take = shadowOf(posted.actions.first { it.title == app.getString(R.string.notif_taken) }.actionIntent)
         assertTrue(take.isActivity)
-        assertEquals(MainActivity.ACTION_TAKE, take.savedIntent.action)
+        assertEquals(TakeActivity::class.java.name, take.savedIntent.component?.className)
         assertEquals(pillId, take.savedIntent.getLongExtra(ActionReceiver.EXTRA_PILL, -1))
-        // MainActivity is exported, so it only honours a Take that carries this install's token.
-        assertTrue(Notifications.isOwnTake(app, take.savedIntent))
-        assertFalse(Notifications.isOwnTake(app, Intent(take.savedIntent).apply { removeExtra("token") }))
+        assertEquals(minute, take.savedIntent.getIntExtra(ActionReceiver.EXTRA_MINUTE, -1))
 
         // Robolectric can't route an explicit intent to a manifest receiver under the .debug app id,
         // so the receiver is registered by hand and gets the same intent the button would send.
