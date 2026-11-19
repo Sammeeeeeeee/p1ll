@@ -78,11 +78,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -98,6 +94,7 @@ import io.github.sammeeeeeeee.p1ll.ui.HomeState
 import io.github.sammeeeeeeee.p1ll.ui.UndoInfo
 import io.github.sammeeeeeeee.p1ll.ui.components.ChartWave
 import io.github.sammeeeeeeee.p1ll.ui.components.CircleButton
+import io.github.sammeeeeeeee.p1ll.ui.components.DoneMark
 import io.github.sammeeeeeeee.p1ll.ui.components.DoseChart
 import io.github.sammeeeeeeee.p1ll.ui.components.Icons
 import io.github.sammeeeeeeee.p1ll.ui.components.RollingNumber
@@ -105,7 +102,6 @@ import io.github.sammeeeeeeee.p1ll.ui.components.Surface
 import io.github.sammeeeeeeee.p1ll.ui.components.reveal
 import io.github.sammeeeeeeee.p1ll.ui.components.tappable
 import io.github.sammeeeeeeee.p1ll.ui.nav.morph
-import io.github.sammeeeeeeee.p1ll.ui.theme.Motion
 import io.github.sammeeeeeeee.p1ll.ui.theme.P1ll
 import io.github.sammeeeeeeee.p1ll.ui.theme.Type
 import io.github.sammeeeeeeee.p1ll.ui.AppViewModel
@@ -505,28 +501,6 @@ private fun Hero(state: HomeState, modifier: Modifier = Modifier) {
 }
 
 /** A filled accent disc whose check draws itself in. */
-@Composable
-private fun DoneMark(modifier: Modifier) {
-    val c = P1ll.colors
-    val draw = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { draw.animateTo(1f, tween(520, delayMillis = 120, easing = Motion.decelerate)) }
-    val path = remember { Path() }
-    val seg = remember { Path() }
-    val measure = remember { PathMeasure() }
-    Canvas(modifier) {
-        val r = size.minDimension / 2
-        drawCircle(c.accent, r)
-        path.reset()
-        path.moveTo(center.x - r * 0.38f, center.y + r * 0.02f)
-        path.lineTo(center.x - r * 0.1f, center.y + r * 0.3f)
-        path.lineTo(center.x + r * 0.4f, center.y - r * 0.26f)
-        measure.setPath(path, false)
-        seg.reset()
-        measure.getSegment(0f, measure.length * draw.value, seg, true)
-        drawPath(seg, c.onAccent, style = Stroke(r * 0.13f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-    }
-}
-
 @Composable
 private fun StatsRow(state: HomeState) {
     val countUp = rememberFirstTime("stats")

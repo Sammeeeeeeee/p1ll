@@ -1,8 +1,11 @@
 package io.github.sammeeeeeeee.p1ll.data
 
 import android.content.Context
+import io.github.sammeeeeeeee.p1ll.domain.DayCell
 import io.github.sammeeeeeeee.p1ll.domain.Slot
 import io.github.sammeeeeeeee.p1ll.domain.SlotStatus
+import io.github.sammeeeeeeee.p1ll.domain.buildCells
+import io.github.sammeeeeeeee.p1ll.domain.indexDoses
 import io.github.sammeeeeeeee.p1ll.domain.matchSlots
 import io.github.sammeeeeeeee.p1ll.domain.pastDoses
 import io.github.sammeeeeeeee.p1ll.domain.slotTime
@@ -12,6 +15,19 @@ import io.github.sammeeeeeeee.p1ll.reminders.Reminders
 import kotlinx.coroutines.flow.Flow
 import java.time.ZoneId
 import java.time.ZonedDateTime
+
+/** What Take on a reminder did to [TakeOutcome.doseId]'s day; [newly] is false if it was taken already. */
+data class TakeOutcome(
+    val pill: Pill,
+    val doseId: Long,
+    val at: Long,
+    val newly: Boolean,
+    val before: DayCell,
+    val after: DayCell,
+    val takenOnDay: Int,
+) {
+    val completes: Boolean get() = !before.complete && after.complete
+}
 
 /** Every write goes through here so reminders and supply stay in step with the data. */
 class Store(private val context: Context, val db: P1llDb, val settings: SettingsStore) {
@@ -62,6 +78,47 @@ class Store(private val context: Context, val db: P1llDb, val settings: Settings
         return take(slot)
     }
 
+    /**
+     * Take on a reminder. Recorded before its sheet shows anything, so closing the sheet at once still
+     * counts. Returns what the sheet plays out, or null if the pill is gone.
+     */
+    suspend fun takeFromReminder(pillId: Long, day: Long, minute: Int): TakeOutcome? {
+        val zone = ZoneId.systemDefault()
+        val pill = db.pills().get(pillId) ?: return null
+        val slot = resolve(pillId, day, minute) ?: return null
+        val pills = db.pills().all()
+        val before = dayCell(pills, day, zone)
+        val doseId = if (slot.status == SlotStatus.TAKEN) {
+            // Taken meanwhile, in the app: nothing to store, but the reminder still has to go.
+            Notifications.cancel(context, pillId, minute)
+            slot.doseId ?: return null
+        } else {
+            take(slot)
+        }
+        val dose = db.doses().get(doseId) ?: return null
+        val doses = db.doses().between(day, day)
+        return TakeOutcome(
+            pill = pill,
+            doseId = doseId,
+            at = dose.at,
+            newly = slot.status != SlotStatus.TAKEN,
+            before = before,
+            after = buildCells(pills, indexDoses(doses), day, day, zone).first(),
+            takenOnDay = doses.count { it.status == DoseStatus.TAKEN },
+        )
+    }
+
+    /** Undo on Take's sheet: the dose is cleared and its reminder comes back, without alerting again. */
+    suspend fun untake(doseId: Long) {
+        val dose = db.doses().get(doseId) ?: return
+        clear(doseId)
+        val pill = db.pills().get(dose.pillId) ?: return
+        Notifications.dose(context, pill, dose.day, dose.minute, silent = true)
+    }
+
+    private suspend fun dayCell(pills: List<Pill>, day: Long, zone: ZoneId): DayCell =
+        buildCells(pills, indexDoses(db.doses().between(day, day)), day, day, zone).first()
+
     suspend fun clear(doseId: Long) {
         val dose = db.doses().get(doseId) ?: return
         db.doses().delete(doseId)
@@ -102,6 +159,15 @@ class Store(private val context: Context, val db: P1llDb, val settings: Settings
             return
         }
         Reminders.snooze(context, pillId, day, minute)
+    }
+
+    /** Clears the reminder until [at] (epoch millis), when it alerts again; or for good if the dose has been dealt with. */
+    suspend fun remindAt(pillId: Long, day: Long, minute: Int, at: Long) {
+        if (resolve(pillId, day, minute)?.status != SlotStatus.PENDING) {
+            Notifications.cancel(context, pillId, minute)
+            return
+        }
+        Reminders.remindAt(context, pillId, day, minute, at)
     }
 
     suspend fun updateSettings(transform: (Prefs) -> Prefs) {
